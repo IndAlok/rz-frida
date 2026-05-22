@@ -1,0 +1,16 @@
+build/
+build-*/
+install/
+install-*/
+*.dll
+*.dylib
+*.so
+*.pdb
+*.obj
+*.o
+*.exe
+*.user
+.DS_Store
+compile_commands.json
+frida-devkit/
+frida-artifacts/

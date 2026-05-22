@@ -1,0 +1,7 @@
+option('rizin_plugdir', type: 'string', value: '', description: 'Rizin plugin install directory')
+option('rizin_include_dir', type: 'string', value: '', description: 'Manual Rizin source/include directory for local development')
+option('rizin_build_dir', type: 'string', value: '', description: 'Manual Rizin build directory containing generated headers')
+option('rizin_sdb_include_dir', type: 'string', value: '', description: 'Manual sdb include directory for local Rizin source builds')
+option('frida_core', type: 'feature', value: 'auto', description: 'Use frida-core when available')
+option('frida_include_dir', type: 'string', value: '', description: 'Manual include directory for Frida devkit')
+option('frida_library', type: 'string', value: '', description: 'Manual full path to the Frida core library')
