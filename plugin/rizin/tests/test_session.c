@@ -1,0 +1,43 @@
+// SPDX-FileCopyrightText: 2026 Alok Kumar Mishra <alok16022006@gmail.com>
+// SPDX-License-Identifier: LGPL-3.0-only
+
+#include <rz_frida.h>
+
+#include <assert.h>
+#include <string.h>
+
+int main(void) {
+	RzFridaSession *session = rz_frida_session_new();
+	assert(session);
+	assert(rz_frida_session_state(session) == RZ_FRIDA_SESSION_STATE_NEW);
+	assert(!strcmp(rz_frida_session_state_string(rz_frida_session_state(session)), "new"));
+	assert(rz_frida_session_timeout(session) == RZ_FRIDA_DEFAULT_TIMEOUT_MS);
+	assert(!rz_frida_session_is_cancelled(session));
+
+	rz_frida_session_set_timeout(session, 7000);
+	assert(rz_frida_session_timeout(session) == 7000);
+
+	rz_frida_session_request_cancel(session);
+	assert(rz_frida_session_is_cancelled(session));
+
+	RzFridaUri uri = { 0 };
+	assert(rz_frida_uri_parse("frida://attach/local//1234", &uri));
+	assert(rz_frida_session_set_uri(session, &uri));
+	rz_frida_uri_fini(&uri);
+
+	const RzFridaUri *stored = rz_frida_session_uri(session);
+	assert(stored);
+	assert(rz_frida_session_state(session) == RZ_FRIDA_SESSION_STATE_RESOLVED);
+	assert(!strcmp(stored->action, "attach"));
+	assert(!strcmp(stored->transport, "local"));
+	assert(!strcmp(stored->device, ""));
+	assert(!strcmp(stored->target, "1234"));
+
+	rz_frida_session_set_error(session, "failed");
+	assert(rz_frida_session_state(session) == RZ_FRIDA_SESSION_STATE_ERROR);
+	assert(!strcmp(rz_frida_session_error(session), "failed"));
+
+	rz_frida_session_free(session);
+	rz_frida_session_free(NULL);
+	return 0;
+}

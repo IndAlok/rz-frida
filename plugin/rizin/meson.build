@@ -44,6 +44,7 @@ rz_frida_incs = include_directories('include')
 
 rz_frida_src = [
   'src/rz_frida_plugin.c',
+  'src/rz_frida_protocol.c',
   'src/rz_frida_session.c',
   'src/rz_frida_uri.c',
 ]
@@ -75,3 +76,21 @@ test_uri = executable('test_uri',
 )
 
 test('uri parser', test_uri)
+
+test_session = executable('test_session',
+  ['tests/test_session.c', 'src/rz_frida_session.c', 'src/rz_frida_uri.c'],
+  c_args: rz_frida_include_args,
+  dependencies: rz_core_dep,
+  include_directories: rz_frida_incs,
+)
+
+test('session lifecycle', test_session)
+
+test_protocol = executable('test_protocol',
+  ['tests/test_protocol.c', 'src/rz_frida_protocol.c'],
+  c_args: rz_frida_include_args,
+  dependencies: rz_core_dep,
+  include_directories: rz_frida_incs,
+)
+
+test('protocol helpers', test_protocol)

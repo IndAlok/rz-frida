@@ -11,8 +11,19 @@
 #undef RZ_IPI
 #define RZ_IPI static
 
+static const RzCmdDescArg cmd_frida_args[] = {
+	{
+		.name = "args",
+		.optional = true,
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_ARRAY,
+	},
+	{ 0 },
+};
+
 static const RzCmdDescHelp cmd_frida_help = {
 	.summary = "Interact with Frida targets",
+	.args = cmd_frida_args,
 };
 
 RZ_IPI RzCmdStatus rz_cmd_frida_handler(RzCore *core, int argc, const char **argv) {
@@ -23,26 +34,21 @@ RZ_IPI RzCmdStatus rz_cmd_frida_handler(RzCore *core, int argc, const char **arg
 	return RZ_CMD_STATUS_OK;
 }
 
-static bool rz_frida_plugin_init(RzCore *core) {
-	RzCmd *rcmd = core->rcmd;
-	RzCmdDesc *root_cd = rz_cmd_get_root(rcmd);
-	if (!root_cd) {
+static bool rz_frida_plugin_init(RzCore *core, void **user) {
+	if (!user) {
 		return false;
 	}
-
-	RzCmdDesc *cd = rz_cmd_desc_argv_new(rcmd, root_cd, "frida", rz_cmd_frida_handler, &cmd_frida_help);
+	RzCmdDesc *cd = rz_core_plugin_cmd_desc_argv_new(core, "frida", rz_cmd_frida_handler, &cmd_frida_help);
 	if (!cd) {
 		rz_warn_if_reached();
 		return false;
 	}
-
+	*user = cd;
 	return true;
 }
 
-static bool rz_frida_plugin_fini(RzCore *core) {
-	RzCmd *rcmd = core->rcmd;
-	RzCmdDesc *desc = rz_cmd_get_desc(rcmd, "frida");
-	return !desc || rz_cmd_desc_remove(rcmd, desc);
+static bool rz_frida_plugin_fini(RzCore *core, void *user) {
+	return rz_core_plugin_cmd_desc_remove(core, user);
 }
 
 RzCorePlugin rz_core_plugin_frida = {
@@ -68,4 +74,3 @@ RZ_EXPORT RzLibStruct rizin_plugin = {
 	.version = RZ_VERSION,
 };
 #endif
-
