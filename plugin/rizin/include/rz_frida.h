@@ -100,4 +100,6 @@ void rz_frida_json_ok_end(PJ *pj);
 void rz_frida_json_ok_empty(PJ *pj);
 void rz_frida_json_error(PJ *pj, RzFridaError error, const char *message);
 
+bool rz_frida_devices_json(PJ *pj);
+
 #endif
