@@ -78,3 +78,7 @@ cmake -S plugin/cutter -B build-cutter -DCMAKE_PREFIX_PATH=/path/to/cutter/insta
 cmake --build build-cutter
 cmake --install build-cutter
 ```
+
+# References
+
+- [r2frida](https://github.com/nowsecure/r2frida), Frida integration plugin for radare2.
