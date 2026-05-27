@@ -9,7 +9,6 @@
 #include <rz_types.h>
 
 #include <stdlib.h>
-#include <string.h>
 
 #undef RZ_API
 #define RZ_API static
@@ -70,13 +69,15 @@ static RzCmdStatus print_status(RzCore *core, bool json) {
 		return RZ_CMD_STATUS_OK;
 	}
 
-	rz_cons_printf("active: %s\n", active ? "true" : "false");
+	rz_cons_printf("active: %s\n", rz_str_bool(active));
 	rz_cons_printf("state: %s\n", state);
 	return RZ_CMD_STATUS_OK;
 }
 
 static RzCmdStatus print_uri(const char *uri_string, bool json) {
-	if (!uri_string || !*uri_string) {
+	RzFridaUri uri = { 0 };
+
+	if (!RZ_STR_ISNOTEMPTY(uri_string)) {
 		if (json) {
 			PJ *pj = pj_new();
 			if (!pj) {
@@ -90,7 +91,6 @@ static RzCmdStatus print_uri(const char *uri_string, bool json) {
 		return RZ_CMD_STATUS_INVALID;
 	}
 
-	RzFridaUri uri = { 0 };
 	if (!rz_frida_uri_parse(uri_string, &uri)) {
 		if (json) {
 			PJ *pj = pj_new();
@@ -140,19 +140,19 @@ static RzCmdStatus print_devices_json(void) {
 }
 
 RZ_IPI RzCmdStatus rz_cmd_frida_handler(RzCore *core, int argc, const char **argv) {
-	if (argc < 2 || !strcmp(argv[1], "status")) {
+	if (argc < 2 || RZ_STR_EQ(argv[1], "status")) {
 		return print_status(core, false);
 	}
-	if (!strcmp(argv[1], "statusj")) {
+	if (RZ_STR_EQ(argv[1], "statusj")) {
 		return print_status(core, true);
 	}
-	if (!strcmp(argv[1], "uri")) {
+	if (RZ_STR_EQ(argv[1], "uri")) {
 		return argc == 3 ? print_uri(argv[2], false) : RZ_CMD_STATUS_WRONG_ARGS;
 	}
-	if (!strcmp(argv[1], "urij")) {
+	if (RZ_STR_EQ(argv[1], "urij")) {
 		return argc == 3 ? print_uri(argv[2], true) : RZ_CMD_STATUS_WRONG_ARGS;
 	}
-	if (!strcmp(argv[1], "devicesj")) {
+	if (RZ_STR_EQ(argv[1], "devicesj")) {
 		return argc == 2 ? print_devices_json() : RZ_CMD_STATUS_WRONG_ARGS;
 	}
 	return RZ_CMD_STATUS_WRONG_ARGS;
