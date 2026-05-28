@@ -20,12 +20,13 @@ Current functionality includes:
 ```
 meson setup build
 ninja -C build
+meson test -C build
 ```
 
-## Build with Frida devkit
+## Build with Frida
 
-The devkit and compiler toolchain must be ABI-compatible. Configuration fails early when
-`frida-core` is found but cannot be linked by the active compiler.
+The Frida library and compiler toolchain must be ABI-compatible. Configuration fails
+early when `frida-core` is found but cannot be linked by the active compiler.
 
 ```
 meson setup build \
@@ -33,6 +34,7 @@ meson setup build \
   -Dfrida_include_dir=/path/to/frida-core-devkit \
   -Dfrida_library=/path/to/frida-core-library
 ninja -C build
+meson test -C build
 ```
 
 ## Commands

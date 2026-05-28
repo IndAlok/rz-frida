@@ -3,27 +3,13 @@
 
 #include <rz_frida.h>
 
-#include <stdlib.h>
 #include <string.h>
-
-static char *rz_frida_str_ndup(const char *start, size_t len) {
-	char *out = (char *)calloc(len + 1, 1);
-	if (!out) {
-		return NULL;
-	}
-	memcpy(out, start, len);
-	return out;
-}
-
-static char *rz_frida_str_dup(const char *str) {
-	return str ? rz_frida_str_ndup(str, strlen(str)) : NULL;
-}
 
 static bool assign_part(char **dst, const char **cursor, bool rest) {
 	const char *start = *cursor;
 	const char *slash = strchr(start, '/');
 	size_t len = (!rest && slash) ? (size_t)(slash - start) : strlen(start);
-	*dst = rz_frida_str_ndup(start, len);
+	*dst = rz_str_ndup(start, (int)len);
 	if (!*dst) {
 		return false;
 	}
@@ -63,19 +49,19 @@ RzFridaAction rz_frida_action_from_string(const char *action) {
 	if (!action) {
 		return RZ_FRIDA_ACTION_UNKNOWN;
 	}
-	if (!strcmp(action, "list")) {
+	if (RZ_STR_EQ(action, "list")) {
 		return RZ_FRIDA_ACTION_LIST;
 	}
-	if (!strcmp(action, "apps")) {
+	if (RZ_STR_EQ(action, "apps")) {
 		return RZ_FRIDA_ACTION_APPS;
 	}
-	if (!strcmp(action, "attach")) {
+	if (RZ_STR_EQ(action, "attach")) {
 		return RZ_FRIDA_ACTION_ATTACH;
 	}
-	if (!strcmp(action, "spawn")) {
+	if (RZ_STR_EQ(action, "spawn")) {
 		return RZ_FRIDA_ACTION_SPAWN;
 	}
-	if (!strcmp(action, "launch")) {
+	if (RZ_STR_EQ(action, "launch")) {
 		return RZ_FRIDA_ACTION_LAUNCH;
 	}
 	return RZ_FRIDA_ACTION_UNKNOWN;
@@ -99,13 +85,13 @@ RzFridaTransport rz_frida_transport_from_string(const char *transport) {
 	if (!transport) {
 		return RZ_FRIDA_TRANSPORT_UNKNOWN;
 	}
-	if (!strcmp(transport, "local")) {
+	if (RZ_STR_EQ(transport, "local")) {
 		return RZ_FRIDA_TRANSPORT_LOCAL;
 	}
-	if (!strcmp(transport, "usb")) {
+	if (RZ_STR_EQ(transport, "usb")) {
 		return RZ_FRIDA_TRANSPORT_USB;
 	}
-	if (!strcmp(transport, "remote")) {
+	if (RZ_STR_EQ(transport, "remote")) {
 		return RZ_FRIDA_TRANSPORT_REMOTE;
 	}
 	return RZ_FRIDA_TRANSPORT_UNKNOWN;
@@ -115,24 +101,24 @@ void rz_frida_uri_fini(RzFridaUri *uri) {
 	if (!uri) {
 		return;
 	}
-	free(uri->action);
-	free(uri->transport);
-	free(uri->device);
-	free(uri->target);
-	memset(uri, 0, sizeof(*uri));
+	RZ_FREE(uri->action);
+	RZ_FREE(uri->transport);
+	RZ_FREE(uri->device);
+	RZ_FREE(uri->target);
+	rz_mem_memzero(uri, sizeof(*uri));
 }
 
 bool rz_frida_uri_copy(RzFridaUri *dst, const RzFridaUri *src) {
 	if (!dst || !src) {
 		return false;
 	}
-	memset(dst, 0, sizeof(*dst));
+	rz_mem_memzero(dst, sizeof(*dst));
 	dst->action_type = src->action_type;
 	dst->transport_type = src->transport_type;
-	dst->action = rz_frida_str_dup(src->action);
-	dst->transport = rz_frida_str_dup(src->transport);
-	dst->device = rz_frida_str_dup(src->device);
-	dst->target = rz_frida_str_dup(src->target);
+	dst->action = rz_str_dup(src->action);
+	dst->transport = rz_str_dup(src->transport);
+	dst->device = rz_str_dup(src->device);
+	dst->target = rz_str_dup(src->target);
 	if (!dst->action || !dst->transport || !dst->device || !dst->target) {
 		rz_frida_uri_fini(dst);
 		return false;
@@ -145,15 +131,14 @@ bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 		return false;
 	}
 
-	memset(out, 0, sizeof(*out));
+	rz_mem_memzero(out, sizeof(*out));
 
 	const char prefix[] = "frida://";
-	const size_t prefix_len = sizeof(prefix) - 1;
-	if (strncmp(uri, prefix, prefix_len)) {
+	if (!rz_str_startswith(uri, prefix)) {
 		return false;
 	}
 
-	const char *cursor = uri + prefix_len;
+	const char *cursor = uri + strlen(prefix);
 	if (!assign_part(&out->action, &cursor, false) ||
 		!assign_part(&out->transport, &cursor, false) ||
 		!assign_part(&out->device, &cursor, false) ||
@@ -163,7 +148,7 @@ bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 	}
 
 	if (uri_has_more_fields(cursor) ||
-		!*out->action || !*out->transport ||
+		!RZ_STR_ISNOTEMPTY(out->action) || !RZ_STR_ISNOTEMPTY(out->transport) ||
 		!out->device || !out->target) {
 		rz_frida_uri_fini(out);
 		return false;
@@ -177,24 +162,24 @@ bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 		return false;
 	}
 
-	if (target_action(out->action_type) && !*out->target) {
+	if (target_action(out->action_type) && !RZ_STR_ISNOTEMPTY(out->target)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
 
-	if (out->transport_type == RZ_FRIDA_TRANSPORT_LOCAL && *out->device) {
+	if (out->transport_type == RZ_FRIDA_TRANSPORT_LOCAL && RZ_STR_ISNOTEMPTY(out->device)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
 
 	if (out->transport_type == RZ_FRIDA_TRANSPORT_USB &&
-		out->action_type != RZ_FRIDA_ACTION_LIST && !*out->device) {
+		out->action_type != RZ_FRIDA_ACTION_LIST && !RZ_STR_ISNOTEMPTY(out->device)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
 
 	if (out->transport_type == RZ_FRIDA_TRANSPORT_REMOTE) {
-		if (!*out->device || !strchr(out->device, ':')) {
+		if (!RZ_STR_ISNOTEMPTY(out->device) || !strchr(out->device, ':')) {
 			rz_frida_uri_fini(out);
 			return false;
 		}

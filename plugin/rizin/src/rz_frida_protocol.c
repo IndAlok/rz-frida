@@ -3,8 +3,6 @@
 
 #include <rz_frida.h>
 
-#include <string.h>
-
 const char *rz_frida_method_string(RzFridaMethod method) {
 	switch (method) {
 	case RZ_FRIDA_METHOD_STATUS:
@@ -33,28 +31,28 @@ RzFridaMethod rz_frida_method_from_string(const char *method) {
 	if (!method) {
 		return RZ_FRIDA_METHOD_UNKNOWN;
 	}
-	if (!strcmp(method, "status")) {
+	if (RZ_STR_EQ(method, "status")) {
 		return RZ_FRIDA_METHOD_STATUS;
 	}
-	if (!strcmp(method, "devices")) {
+	if (RZ_STR_EQ(method, "devices")) {
 		return RZ_FRIDA_METHOD_DEVICES;
 	}
-	if (!strcmp(method, "processes")) {
+	if (RZ_STR_EQ(method, "processes")) {
 		return RZ_FRIDA_METHOD_PROCESSES;
 	}
-	if (!strcmp(method, "apps")) {
+	if (RZ_STR_EQ(method, "apps")) {
 		return RZ_FRIDA_METHOD_APPS;
 	}
-	if (!strcmp(method, "attach")) {
+	if (RZ_STR_EQ(method, "attach")) {
 		return RZ_FRIDA_METHOD_ATTACH;
 	}
-	if (!strcmp(method, "spawn")) {
+	if (RZ_STR_EQ(method, "spawn")) {
 		return RZ_FRIDA_METHOD_SPAWN;
 	}
-	if (!strcmp(method, "launch")) {
+	if (RZ_STR_EQ(method, "launch")) {
 		return RZ_FRIDA_METHOD_LAUNCH;
 	}
-	if (!strcmp(method, "detach")) {
+	if (RZ_STR_EQ(method, "detach")) {
 		return RZ_FRIDA_METHOD_DETACH;
 	}
 	return RZ_FRIDA_METHOD_UNKNOWN;

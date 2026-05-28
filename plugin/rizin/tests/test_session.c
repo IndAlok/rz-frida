@@ -4,13 +4,12 @@
 #include <rz_frida.h>
 
 #include <assert.h>
-#include <string.h>
 
 int main(void) {
 	RzFridaSession *session = rz_frida_session_new();
 	assert(session);
 	assert(rz_frida_session_state(session) == RZ_FRIDA_SESSION_STATE_NEW);
-	assert(!strcmp(rz_frida_session_state_string(rz_frida_session_state(session)), "new"));
+	assert(RZ_STR_EQ(rz_frida_session_state_string(rz_frida_session_state(session)), "new"));
 	assert(rz_frida_session_timeout(session) == RZ_FRIDA_DEFAULT_TIMEOUT_MS);
 	assert(!rz_frida_session_is_cancelled(session));
 
@@ -28,14 +27,14 @@ int main(void) {
 	const RzFridaUri *stored = rz_frida_session_uri(session);
 	assert(stored);
 	assert(rz_frida_session_state(session) == RZ_FRIDA_SESSION_STATE_RESOLVED);
-	assert(!strcmp(stored->action, "attach"));
-	assert(!strcmp(stored->transport, "local"));
-	assert(!strcmp(stored->device, ""));
-	assert(!strcmp(stored->target, "1234"));
+	assert(RZ_STR_EQ(stored->action, "attach"));
+	assert(RZ_STR_EQ(stored->transport, "local"));
+	assert(RZ_STR_EQ(stored->device, ""));
+	assert(RZ_STR_EQ(stored->target, "1234"));
 
 	rz_frida_session_set_error(session, "failed");
 	assert(rz_frida_session_state(session) == RZ_FRIDA_SESSION_STATE_ERROR);
-	assert(!strcmp(rz_frida_session_error(session), "failed"));
+	assert(RZ_STR_EQ(rz_frida_session_error(session), "failed"));
 
 	rz_frida_session_free(session);
 	rz_frida_session_free(NULL);

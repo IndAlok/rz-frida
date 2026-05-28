@@ -5,8 +5,6 @@
 #include <rz_frida.h>
 
 #include <assert.h>
-#include <stdlib.h>
-#include <string.h>
 
 extern RzCorePlugin rz_core_plugin_frida;
 
@@ -20,14 +18,21 @@ int main(void) {
 
 	char *status = rz_core_cmd_str(core, "frida statusj");
 	assert(status);
-	assert(!strcmp(status, "{\"ok\":true,\"result\":{\"active\":false,\"state\":\"closed\"}}\n"));
-	free(status);
+	assert(RZ_STR_EQ(status, "{\"ok\":true,\"result\":{\"active\":false,\"state\":\"closed\"}}\n"));
+	RZ_FREE(status);
 
 	char *uri = rz_core_cmd_str(core, "frida urij frida://attach/local//1234");
 	assert(uri);
-	assert(!strcmp(uri,
+	assert(RZ_STR_EQ(uri,
 		"{\"ok\":true,\"result\":{\"action\":\"attach\",\"transport\":\"local\",\"device\":\"\",\"target\":\"1234\"}}\n"));
-	free(uri);
+	RZ_FREE(uri);
+
+	char *devices = rz_core_cmd_str(core, "frida devicesj");
+	if (devices) {
+		assert(rz_str_startswith(devices, "{\"ok\":false,\"error\":{\"code\":\"") ||
+			rz_str_startswith(devices, "{\"ok\":true,\"result\":{\"devices\":["));
+		RZ_FREE(devices);
+	}
 
 	assert(rz_core_plugin_del(core, &rz_core_plugin_frida));
 	assert(!rz_core_plugin_context_get(core, &rz_core_plugin_frida));

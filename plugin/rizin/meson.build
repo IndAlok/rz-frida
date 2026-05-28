@@ -13,6 +13,9 @@ if not frida_core_opt.disabled()
   frida_library = get_option('frida_library')
   if frida_include_dir != '' and frida_library != ''
     frida_core_manual = true
+    if host_machine.system() == 'windows' and cc.get_id() == 'gcc' and frida_library.to_lower().endswith('.lib')
+      error('frida-core was found but cannot be linked with this compiler and toolchain')
+    endif
     frida_core_compile_args = ['-I' + frida_include_dir]
     frida_core_link_args = [frida_library]
     frida_core_dep = declare_dependency(

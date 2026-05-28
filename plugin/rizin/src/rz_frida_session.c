@@ -3,9 +3,6 @@
 
 #include <rz_frida.h>
 
-#include <stdlib.h>
-#include <string.h>
-
 struct rz_frida_session_t {
 	ut64 id;
 	RzFridaSessionState state;
@@ -19,19 +16,6 @@ struct rz_frida_session_t {
 	void *script;
 	void *cancellable;
 };
-
-static char *rz_frida_session_strdup(const char *str) {
-	if (!str) {
-		return NULL;
-	}
-	size_t len = strlen(str);
-	char *out = (char *)calloc(len + 1, 1);
-	if (!out) {
-		return NULL;
-	}
-	memcpy(out, str, len);
-	return out;
-}
 
 const char *rz_frida_session_state_string(RzFridaSessionState state) {
 	switch (state) {
@@ -55,7 +39,7 @@ const char *rz_frida_session_state_string(RzFridaSessionState state) {
 }
 
 RzFridaSession *rz_frida_session_new(void) {
-	RzFridaSession *session = (RzFridaSession *)calloc(1, sizeof(RzFridaSession));
+	RzFridaSession *session = RZ_NEW0(RzFridaSession);
 	if (!session) {
 		return NULL;
 	}
@@ -69,8 +53,8 @@ void rz_frida_session_free(RzFridaSession *session) {
 		return;
 	}
 	rz_frida_uri_fini(&session->uri);
-	free(session->last_error);
-	free(session);
+	RZ_FREE(session->last_error);
+	RZ_FREE(session);
 }
 
 bool rz_frida_session_set_uri(RzFridaSession *session, const RzFridaUri *uri) {
@@ -121,11 +105,11 @@ void rz_frida_session_set_error(RzFridaSession *session, const char *message) {
 	if (!session) {
 		return;
 	}
-	char *copy = rz_frida_session_strdup(message ? message : "internal error");
+	char *copy = rz_str_dup(message ? message : "internal error");
 	if (!copy) {
 		return;
 	}
-	free(session->last_error);
+	RZ_FREE(session->last_error);
 	session->last_error = copy;
 	session->state = RZ_FRIDA_SESSION_STATE_ERROR;
 }

@@ -8,8 +8,6 @@
 #include <rz_lib.h>
 #include <rz_types.h>
 
-#include <stdlib.h>
-
 #undef RZ_API
 #define RZ_API static
 #undef RZ_IPI
@@ -167,7 +165,7 @@ static void frida_context_free(RzFridaCoreContext *ctx) {
 		return;
 	}
 	rz_frida_session_free(ctx->session);
-	free(ctx);
+	RZ_FREE(ctx);
 }
 
 static bool rz_frida_plugin_init(RzCore *core, void **user) {

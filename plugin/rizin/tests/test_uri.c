@@ -4,7 +4,6 @@
 #include <rz_frida.h>
 
 #include <assert.h>
-#include <string.h>
 
 int main(void) {
 	RzFridaUri uri = { 0 };
@@ -12,38 +11,38 @@ int main(void) {
 	assert(rz_frida_uri_parse("frida://attach/local//1234", &uri));
 	assert(uri.action_type == RZ_FRIDA_ACTION_ATTACH);
 	assert(uri.transport_type == RZ_FRIDA_TRANSPORT_LOCAL);
-	assert(!strcmp(uri.action, "attach"));
-	assert(!strcmp(uri.transport, "local"));
-	assert(!strcmp(uri.device, ""));
-	assert(!strcmp(uri.target, "1234"));
+	assert(RZ_STR_EQ(uri.action, "attach"));
+	assert(RZ_STR_EQ(uri.transport, "local"));
+	assert(RZ_STR_EQ(uri.device, ""));
+	assert(RZ_STR_EQ(uri.target, "1234"));
 	rz_frida_uri_fini(&uri);
 
 	assert(rz_frida_uri_parse("frida://spawn/usb/device-1/com.example.app", &uri));
 	assert(uri.action_type == RZ_FRIDA_ACTION_SPAWN);
 	assert(uri.transport_type == RZ_FRIDA_TRANSPORT_USB);
-	assert(!strcmp(uri.action, "spawn"));
-	assert(!strcmp(uri.transport, "usb"));
-	assert(!strcmp(uri.device, "device-1"));
-	assert(!strcmp(uri.target, "com.example.app"));
+	assert(RZ_STR_EQ(uri.action, "spawn"));
+	assert(RZ_STR_EQ(uri.transport, "usb"));
+	assert(RZ_STR_EQ(uri.device, "device-1"));
+	assert(RZ_STR_EQ(uri.target, "com.example.app"));
 	rz_frida_uri_fini(&uri);
 
 	assert(rz_frida_uri_parse("frida://list/local//", &uri));
 	assert(uri.action_type == RZ_FRIDA_ACTION_LIST);
-	assert(!strcmp(uri.target, ""));
+	assert(RZ_STR_EQ(uri.target, ""));
 	rz_frida_uri_fini(&uri);
 
 	assert(rz_frida_uri_parse("frida://launch/local///bin/ls", &uri));
-	assert(!strcmp(uri.target, "/bin/ls"));
+	assert(RZ_STR_EQ(uri.target, "/bin/ls"));
 	rz_frida_uri_fini(&uri);
 
 	assert(rz_frida_uri_parse("frida://attach/remote/127.0.0.1:27042/4321", &uri));
 	assert(uri.transport_type == RZ_FRIDA_TRANSPORT_REMOTE);
-	assert(!strcmp(uri.device, "127.0.0.1:27042"));
+	assert(RZ_STR_EQ(uri.device, "127.0.0.1:27042"));
 	rz_frida_uri_fini(&uri);
 
-	assert(!strcmp(rz_frida_action_string(RZ_FRIDA_ACTION_APPS), "apps"));
+	assert(RZ_STR_EQ(rz_frida_action_string(RZ_FRIDA_ACTION_APPS), "apps"));
 	assert(rz_frida_action_from_string("launch") == RZ_FRIDA_ACTION_LAUNCH);
-	assert(!strcmp(rz_frida_transport_string(RZ_FRIDA_TRANSPORT_USB), "usb"));
+	assert(RZ_STR_EQ(rz_frida_transport_string(RZ_FRIDA_TRANSPORT_USB), "usb"));
 	assert(rz_frida_transport_from_string("remote") == RZ_FRIDA_TRANSPORT_REMOTE);
 
 	assert(!rz_frida_uri_parse("gdb://attach/local//1234", &uri));
