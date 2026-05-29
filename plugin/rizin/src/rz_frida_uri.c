@@ -6,6 +6,8 @@
 #include <string.h>
 
 static bool assign_part(char **dst, const char **cursor, bool rest) {
+	rz_return_val_if_fail(dst && cursor && *cursor, false);
+
 	const char *start = *cursor;
 	const char *slash = strchr(start, '/');
 	size_t len = (!rest && slash) ? (size_t)(slash - start) : strlen(start);
@@ -27,7 +29,7 @@ static bool target_action(RzFridaAction action) {
 		action == RZ_FRIDA_ACTION_LAUNCH;
 }
 
-const char *rz_frida_action_string(RzFridaAction action) {
+RZ_IPI const char *rz_frida_action_string(RzFridaAction action) {
 	switch (action) {
 	case RZ_FRIDA_ACTION_LIST:
 		return "list";
@@ -45,29 +47,25 @@ const char *rz_frida_action_string(RzFridaAction action) {
 	}
 }
 
-RzFridaAction rz_frida_action_from_string(const char *action) {
+RZ_IPI RzFridaAction rz_frida_action_from_string(const char *action) {
 	if (!action) {
 		return RZ_FRIDA_ACTION_UNKNOWN;
 	}
 	if (RZ_STR_EQ(action, "list")) {
 		return RZ_FRIDA_ACTION_LIST;
-	}
-	if (RZ_STR_EQ(action, "apps")) {
+	} else if (RZ_STR_EQ(action, "apps")) {
 		return RZ_FRIDA_ACTION_APPS;
-	}
-	if (RZ_STR_EQ(action, "attach")) {
+	} else if (RZ_STR_EQ(action, "attach")) {
 		return RZ_FRIDA_ACTION_ATTACH;
-	}
-	if (RZ_STR_EQ(action, "spawn")) {
+	} else if (RZ_STR_EQ(action, "spawn")) {
 		return RZ_FRIDA_ACTION_SPAWN;
-	}
-	if (RZ_STR_EQ(action, "launch")) {
+	} else if (RZ_STR_EQ(action, "launch")) {
 		return RZ_FRIDA_ACTION_LAUNCH;
 	}
 	return RZ_FRIDA_ACTION_UNKNOWN;
 }
 
-const char *rz_frida_transport_string(RzFridaTransport transport) {
+RZ_IPI const char *rz_frida_transport_string(RzFridaTransport transport) {
 	switch (transport) {
 	case RZ_FRIDA_TRANSPORT_LOCAL:
 		return "local";
@@ -81,23 +79,21 @@ const char *rz_frida_transport_string(RzFridaTransport transport) {
 	}
 }
 
-RzFridaTransport rz_frida_transport_from_string(const char *transport) {
+RZ_IPI RzFridaTransport rz_frida_transport_from_string(const char *transport) {
 	if (!transport) {
 		return RZ_FRIDA_TRANSPORT_UNKNOWN;
 	}
 	if (RZ_STR_EQ(transport, "local")) {
 		return RZ_FRIDA_TRANSPORT_LOCAL;
-	}
-	if (RZ_STR_EQ(transport, "usb")) {
+	} else if (RZ_STR_EQ(transport, "usb")) {
 		return RZ_FRIDA_TRANSPORT_USB;
-	}
-	if (RZ_STR_EQ(transport, "remote")) {
+	} else if (RZ_STR_EQ(transport, "remote")) {
 		return RZ_FRIDA_TRANSPORT_REMOTE;
 	}
 	return RZ_FRIDA_TRANSPORT_UNKNOWN;
 }
 
-void rz_frida_uri_fini(RzFridaUri *uri) {
+RZ_IPI void rz_frida_uri_fini(RzFridaUri *uri) {
 	if (!uri) {
 		return;
 	}
@@ -108,10 +104,9 @@ void rz_frida_uri_fini(RzFridaUri *uri) {
 	rz_mem_memzero(uri, sizeof(*uri));
 }
 
-bool rz_frida_uri_copy(RzFridaUri *dst, const RzFridaUri *src) {
-	if (!dst || !src) {
-		return false;
-	}
+RZ_IPI bool rz_frida_uri_copy(RzFridaUri *dst, const RzFridaUri *src) {
+	rz_return_val_if_fail(dst && src, false);
+
 	rz_mem_memzero(dst, sizeof(*dst));
 	dst->action_type = src->action_type;
 	dst->transport_type = src->transport_type;
@@ -126,10 +121,8 @@ bool rz_frida_uri_copy(RzFridaUri *dst, const RzFridaUri *src) {
 	return true;
 }
 
-bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
-	if (!uri || !out) {
-		return false;
-	}
+RZ_IPI bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
+	rz_return_val_if_fail(uri && out, false);
 
 	rz_mem_memzero(out, sizeof(*out));
 

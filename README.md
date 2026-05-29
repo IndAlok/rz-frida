@@ -4,14 +4,14 @@ Frida integration plugin for Rizin and Cutter.
 
 The Rizin plugin provides the backend and command interface. The Cutter plugin provides a native frontend over the Rizin backend.
 
-Current functionality includes:
+The plugin provides:
 
 - Rizin core plugin build support
-- Cutter native plugin skeleton build support
+- Cutter native plugin build support
 - `frida://` URI validation
 - session ownership, timeout, and cancellation primitives
 - structured status and error replies
-- structured device-listing entry point when `frida-core` is enabled
+- structured device enumeration when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -40,14 +40,14 @@ meson test -C build
 ## Commands
 
 ```
-frida status
-frida statusj
-frida uri frida://attach/local//1234
-frida urij frida://attach/local//1234
-frida devicesj
+fridas
+fridasj
+fridau frida://attach/local//1234
+fridauj frida://attach/local//1234
+fridadj
 ```
 
-`frida devicesj` returns a structured `frida_unavailable` error when the plugin is built
+`fridadj` returns a structured `frida_unavailable` error when the plugin is built
 without `frida-core`.
 
 ## Install

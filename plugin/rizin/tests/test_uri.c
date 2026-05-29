@@ -5,9 +5,8 @@
 
 #include <assert.h>
 
-int main(void) {
+static void test_local_attach_uri(void) {
 	RzFridaUri uri = { 0 };
-
 	assert(rz_frida_uri_parse("frida://attach/local//1234", &uri));
 	assert(uri.action_type == RZ_FRIDA_ACTION_ATTACH);
 	assert(uri.transport_type == RZ_FRIDA_TRANSPORT_LOCAL);
@@ -16,7 +15,10 @@ int main(void) {
 	assert(RZ_STR_EQ(uri.device, ""));
 	assert(RZ_STR_EQ(uri.target, "1234"));
 	rz_frida_uri_fini(&uri);
+}
 
+static void test_usb_spawn_uri(void) {
+	RzFridaUri uri = { 0 };
 	assert(rz_frida_uri_parse("frida://spawn/usb/device-1/com.example.app", &uri));
 	assert(uri.action_type == RZ_FRIDA_ACTION_SPAWN);
 	assert(uri.transport_type == RZ_FRIDA_TRANSPORT_USB);
@@ -25,26 +27,40 @@ int main(void) {
 	assert(RZ_STR_EQ(uri.device, "device-1"));
 	assert(RZ_STR_EQ(uri.target, "com.example.app"));
 	rz_frida_uri_fini(&uri);
+}
 
+static void test_local_list_uri(void) {
+	RzFridaUri uri = { 0 };
 	assert(rz_frida_uri_parse("frida://list/local//", &uri));
 	assert(uri.action_type == RZ_FRIDA_ACTION_LIST);
 	assert(RZ_STR_EQ(uri.target, ""));
 	rz_frida_uri_fini(&uri);
+}
 
+static void test_launch_path_with_slashes(void) {
+	RzFridaUri uri = { 0 };
 	assert(rz_frida_uri_parse("frida://launch/local///bin/ls", &uri));
 	assert(RZ_STR_EQ(uri.target, "/bin/ls"));
 	rz_frida_uri_fini(&uri);
+}
 
+static void test_remote_attach_uri(void) {
+	RzFridaUri uri = { 0 };
 	assert(rz_frida_uri_parse("frida://attach/remote/127.0.0.1:27042/4321", &uri));
 	assert(uri.transport_type == RZ_FRIDA_TRANSPORT_REMOTE);
 	assert(RZ_STR_EQ(uri.device, "127.0.0.1:27042"));
 	rz_frida_uri_fini(&uri);
+}
 
+static void test_action_transport_conversion(void) {
 	assert(RZ_STR_EQ(rz_frida_action_string(RZ_FRIDA_ACTION_APPS), "apps"));
 	assert(rz_frida_action_from_string("launch") == RZ_FRIDA_ACTION_LAUNCH);
 	assert(RZ_STR_EQ(rz_frida_transport_string(RZ_FRIDA_TRANSPORT_USB), "usb"));
 	assert(rz_frida_transport_from_string("remote") == RZ_FRIDA_TRANSPORT_REMOTE);
+}
 
+static void test_invalid_uris(void) {
+	RzFridaUri uri = { 0 };
 	assert(!rz_frida_uri_parse("gdb://attach/local//1234", &uri));
 	assert(!rz_frida_uri_parse("frida://", &uri));
 	assert(!rz_frida_uri_parse("frida://attach/local//", &uri));
@@ -53,6 +69,15 @@ int main(void) {
 	assert(!rz_frida_uri_parse("frida://attach/other//1234", &uri));
 	assert(!rz_frida_uri_parse("frida://other/local//1234", &uri));
 	assert(!rz_frida_uri_parse("frida://attach/local/device/1234", &uri));
+}
 
+int main(void) {
+	test_local_attach_uri();
+	test_usb_spawn_uri();
+	test_local_list_uri();
+	test_launch_path_with_slashes();
+	test_remote_attach_uri();
+	test_action_transport_conversion();
+	test_invalid_uris();
 	return 0;
 }

@@ -3,7 +3,7 @@
 
 #include <rz_frida.h>
 
-const char *rz_frida_method_string(RzFridaMethod method) {
+RZ_IPI const char *rz_frida_method_string(RzFridaMethod method) {
 	switch (method) {
 	case RZ_FRIDA_METHOD_STATUS:
 		return "status";
@@ -27,44 +27,33 @@ const char *rz_frida_method_string(RzFridaMethod method) {
 	}
 }
 
-RzFridaMethod rz_frida_method_from_string(const char *method) {
+RZ_IPI RzFridaMethod rz_frida_method_from_string(const char *method) {
 	if (!method) {
 		return RZ_FRIDA_METHOD_UNKNOWN;
 	}
 	if (RZ_STR_EQ(method, "status")) {
 		return RZ_FRIDA_METHOD_STATUS;
-	}
-	if (RZ_STR_EQ(method, "devices")) {
+	} else if (RZ_STR_EQ(method, "devices")) {
 		return RZ_FRIDA_METHOD_DEVICES;
-	}
-	if (RZ_STR_EQ(method, "processes")) {
+	} else if (RZ_STR_EQ(method, "processes")) {
 		return RZ_FRIDA_METHOD_PROCESSES;
-	}
-	if (RZ_STR_EQ(method, "apps")) {
+	} else if (RZ_STR_EQ(method, "apps")) {
 		return RZ_FRIDA_METHOD_APPS;
-	}
-	if (RZ_STR_EQ(method, "attach")) {
+	} else if (RZ_STR_EQ(method, "attach")) {
 		return RZ_FRIDA_METHOD_ATTACH;
-	}
-	if (RZ_STR_EQ(method, "spawn")) {
+	} else if (RZ_STR_EQ(method, "spawn")) {
 		return RZ_FRIDA_METHOD_SPAWN;
-	}
-	if (RZ_STR_EQ(method, "launch")) {
+	} else if (RZ_STR_EQ(method, "launch")) {
 		return RZ_FRIDA_METHOD_LAUNCH;
-	}
-	if (RZ_STR_EQ(method, "detach")) {
+	} else if (RZ_STR_EQ(method, "detach")) {
 		return RZ_FRIDA_METHOD_DETACH;
 	}
 	return RZ_FRIDA_METHOD_UNKNOWN;
 }
 
-bool rz_frida_method_parse(const char *method, RzFridaMethod *out, PJ *pj) {
-	if (!out) {
-		if (pj) {
-			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "missing method output");
-		}
-		return false;
-	}
+RZ_IPI bool rz_frida_method_parse(const char *method, RzFridaMethod *out, PJ *pj) {
+	rz_return_val_if_fail(out, false);
+
 	*out = rz_frida_method_from_string(method);
 	if (*out != RZ_FRIDA_METHOD_UNKNOWN) {
 		return true;
@@ -75,7 +64,7 @@ bool rz_frida_method_parse(const char *method, RzFridaMethod *out, PJ *pj) {
 	return false;
 }
 
-const char *rz_frida_error_string(RzFridaError error) {
+RZ_IPI const char *rz_frida_error_string(RzFridaError error) {
 	switch (error) {
 	case RZ_FRIDA_ERROR_NONE:
 		return "none";
@@ -97,32 +86,27 @@ const char *rz_frida_error_string(RzFridaError error) {
 	}
 }
 
-void rz_frida_json_ok_begin(PJ *pj) {
-	if (!pj) {
-		return;
-	}
+RZ_IPI void rz_frida_json_ok_begin(PJ *pj) {
+	rz_return_if_fail(pj);
 	pj_o(pj);
 	pj_kb(pj, "ok", true);
 	pj_ko(pj, "result");
 }
 
-void rz_frida_json_ok_end(PJ *pj) {
-	if (!pj) {
-		return;
-	}
+RZ_IPI void rz_frida_json_ok_end(PJ *pj) {
+	rz_return_if_fail(pj);
 	pj_end(pj);
 	pj_end(pj);
 }
 
-void rz_frida_json_ok_empty(PJ *pj) {
+RZ_IPI void rz_frida_json_ok_empty(PJ *pj) {
+	rz_return_if_fail(pj);
 	rz_frida_json_ok_begin(pj);
 	rz_frida_json_ok_end(pj);
 }
 
-void rz_frida_json_error(PJ *pj, RzFridaError error, const char *message) {
-	if (!pj) {
-		return;
-	}
+RZ_IPI void rz_frida_json_error(PJ *pj, RzFridaError error, const char *message) {
+	rz_return_if_fail(pj);
 	pj_o(pj);
 	pj_kb(pj, "ok", false);
 	pj_ko(pj, "error");

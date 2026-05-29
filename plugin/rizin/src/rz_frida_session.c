@@ -17,7 +17,7 @@ struct rz_frida_session_t {
 	void *cancellable;
 };
 
-const char *rz_frida_session_state_string(RzFridaSessionState state) {
+RZ_IPI const char *rz_frida_session_state_string(RzFridaSessionState state) {
 	switch (state) {
 	case RZ_FRIDA_SESSION_STATE_NEW:
 		return "new";
@@ -38,7 +38,7 @@ const char *rz_frida_session_state_string(RzFridaSessionState state) {
 	}
 }
 
-RzFridaSession *rz_frida_session_new(void) {
+RZ_IPI RzFridaSession *rz_frida_session_new(void) {
 	RzFridaSession *session = RZ_NEW0(RzFridaSession);
 	if (!session) {
 		return NULL;
@@ -48,7 +48,7 @@ RzFridaSession *rz_frida_session_new(void) {
 	return session;
 }
 
-void rz_frida_session_free(RzFridaSession *session) {
+RZ_IPI void rz_frida_session_free(RzFridaSession *session) {
 	if (!session) {
 		return;
 	}
@@ -57,10 +57,9 @@ void rz_frida_session_free(RzFridaSession *session) {
 	RZ_FREE(session);
 }
 
-bool rz_frida_session_set_uri(RzFridaSession *session, const RzFridaUri *uri) {
-	if (!session || !uri) {
-		return false;
-	}
+RZ_IPI bool rz_frida_session_set_uri(RzFridaSession *session, const RzFridaUri *uri) {
+	rz_return_val_if_fail(session && uri, false);
+
 	RzFridaUri copy = { 0 };
 	if (!rz_frida_uri_copy(&copy, uri)) {
 		return false;
@@ -71,40 +70,38 @@ bool rz_frida_session_set_uri(RzFridaSession *session, const RzFridaUri *uri) {
 	return true;
 }
 
-const RzFridaUri *rz_frida_session_uri(const RzFridaSession *session) {
-	return session ? &session->uri : NULL;
+RZ_IPI const RzFridaUri *rz_frida_session_uri(const RzFridaSession *session) {
+	rz_return_val_if_fail(session, NULL);
+	return &session->uri;
 }
 
-RzFridaSessionState rz_frida_session_state(const RzFridaSession *session) {
-	return session ? session->state : RZ_FRIDA_SESSION_STATE_ERROR;
+RZ_IPI RzFridaSessionState rz_frida_session_state(const RzFridaSession *session) {
+	rz_return_val_if_fail(session, RZ_FRIDA_SESSION_STATE_ERROR);
+	return session->state;
 }
 
-void rz_frida_session_set_timeout(RzFridaSession *session, ut64 timeout_ms) {
-	if (!session) {
-		return;
-	}
+RZ_IPI void rz_frida_session_set_timeout(RzFridaSession *session, ut64 timeout_ms) {
+	rz_return_if_fail(session);
 	session->timeout_ms = timeout_ms;
 }
 
-ut64 rz_frida_session_timeout(const RzFridaSession *session) {
-	return session ? session->timeout_ms : 0;
+RZ_IPI ut64 rz_frida_session_timeout(const RzFridaSession *session) {
+	rz_return_val_if_fail(session, 0);
+	return session->timeout_ms;
 }
 
-void rz_frida_session_request_cancel(RzFridaSession *session) {
-	if (!session) {
-		return;
-	}
+RZ_IPI void rz_frida_session_request_cancel(RzFridaSession *session) {
+	rz_return_if_fail(session);
 	session->cancel_requested = true;
 }
 
-bool rz_frida_session_is_cancelled(const RzFridaSession *session) {
-	return session ? session->cancel_requested : false;
+RZ_IPI bool rz_frida_session_is_cancelled(const RzFridaSession *session) {
+	rz_return_val_if_fail(session, false);
+	return session->cancel_requested;
 }
 
-void rz_frida_session_set_error(RzFridaSession *session, const char *message) {
-	if (!session) {
-		return;
-	}
+RZ_IPI void rz_frida_session_set_error(RzFridaSession *session, const char *message) {
+	rz_return_if_fail(session);
 	char *copy = rz_str_dup(message ? message : "internal error");
 	if (!copy) {
 		return;
@@ -114,6 +111,7 @@ void rz_frida_session_set_error(RzFridaSession *session, const char *message) {
 	session->state = RZ_FRIDA_SESSION_STATE_ERROR;
 }
 
-const char *rz_frida_session_error(const RzFridaSession *session) {
-	return session ? session->last_error : NULL;
+RZ_IPI const char *rz_frida_session_error(const RzFridaSession *session) {
+	rz_return_val_if_fail(session, NULL);
+	return session->last_error;
 }

@@ -13,7 +13,5 @@ int main(void) {
 		"{\"ok\":false,\"error\":{\"code\":\"frida_unavailable\",\"message\":\"frida-core support is not enabled\"}}"));
 	pj_free(pj);
 
-	assert(!rz_frida_devices_json(NULL));
-
 	return 0;
 }
