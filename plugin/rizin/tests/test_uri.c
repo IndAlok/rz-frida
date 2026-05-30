@@ -2,30 +2,90 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
 #include <rz_frida.h>
+#include "minunit.h"
 
-#include <assert.h>
-#include <string.h>
-
-int main(void) {
+static bool test_local_attach_uri(void) {
 	RzFridaUri uri = { 0 };
-
-	assert(rz_frida_uri_parse("frida://attach/local//1234", &uri));
-	assert(!strcmp(uri.action, "attach"));
-	assert(!strcmp(uri.transport, "local"));
-	assert(!strcmp(uri.device, ""));
-	assert(!strcmp(uri.target, "1234"));
+	mu_assert_true(rz_frida_uri_parse("frida://attach/local//1234", &uri), "parse local attach URI");
+	mu_assert_eq(uri.action_type, RZ_FRIDA_ACTION_ATTACH, "action type is attach");
+	mu_assert_eq(uri.transport_type, RZ_FRIDA_TRANSPORT_LOCAL, "transport type is local");
+	mu_assert_streq(uri.action, "attach", "action text is attach");
+	mu_assert_streq(uri.transport, "local", "transport text is local");
+	mu_assert_streq(uri.device, "", "device is empty for local");
+	mu_assert_streq(uri.target, "1234", "target is the pid");
 	rz_frida_uri_fini(&uri);
-
-	assert(rz_frida_uri_parse("frida://spawn/usb/device-1/com.example.app", &uri));
-	assert(!strcmp(uri.action, "spawn"));
-	assert(!strcmp(uri.transport, "usb"));
-	assert(!strcmp(uri.device, "device-1"));
-	assert(!strcmp(uri.target, "com.example.app"));
-	rz_frida_uri_fini(&uri);
-
-	assert(!rz_frida_uri_parse("gdb://attach/local//1234", &uri));
-	assert(!rz_frida_uri_parse("frida://", &uri));
-
-	return 0;
+	mu_end;
 }
 
+static bool test_usb_spawn_uri(void) {
+	RzFridaUri uri = { 0 };
+	mu_assert_true(rz_frida_uri_parse("frida://spawn/usb/device-1/com.example.app", &uri), "parse usb spawn URI");
+	mu_assert_eq(uri.action_type, RZ_FRIDA_ACTION_SPAWN, "action type is spawn");
+	mu_assert_eq(uri.transport_type, RZ_FRIDA_TRANSPORT_USB, "transport type is usb");
+	mu_assert_streq(uri.action, "spawn", "action text is spawn");
+	mu_assert_streq(uri.transport, "usb", "transport text is usb");
+	mu_assert_streq(uri.device, "device-1", "device id is preserved");
+	mu_assert_streq(uri.target, "com.example.app", "target package is preserved");
+	rz_frida_uri_fini(&uri);
+	mu_end;
+}
+
+static bool test_local_list_uri(void) {
+	RzFridaUri uri = { 0 };
+	mu_assert_true(rz_frida_uri_parse("frida://list/local//", &uri), "parse local list URI");
+	mu_assert_eq(uri.action_type, RZ_FRIDA_ACTION_LIST, "action type is list");
+	mu_assert_streq(uri.target, "", "target is empty for list");
+	rz_frida_uri_fini(&uri);
+	mu_end;
+}
+
+static bool test_launch_path_with_slashes(void) {
+	RzFridaUri uri = { 0 };
+	mu_assert_true(rz_frida_uri_parse("frida://launch/local///bin/ls", &uri), "parse launch URI with a path target");
+	mu_assert_streq(uri.target, "/bin/ls", "target keeps its leading slash");
+	rz_frida_uri_fini(&uri);
+	mu_end;
+}
+
+static bool test_remote_attach_uri(void) {
+	RzFridaUri uri = { 0 };
+	mu_assert_true(rz_frida_uri_parse("frida://attach/remote/127.0.0.1:27042/4321", &uri), "parse remote attach URI");
+	mu_assert_eq(uri.transport_type, RZ_FRIDA_TRANSPORT_REMOTE, "transport type is remote");
+	mu_assert_streq(uri.device, "127.0.0.1:27042", "device is the host:port pair");
+	rz_frida_uri_fini(&uri);
+	mu_end;
+}
+
+static bool test_action_transport_conversion(void) {
+	mu_assert_streq(rz_frida_action_string(RZ_FRIDA_ACTION_APPS), "apps", "apps action to string");
+	mu_assert_eq(rz_frida_action_from_string("launch"), RZ_FRIDA_ACTION_LAUNCH, "launch action from string");
+	mu_assert_streq(rz_frida_transport_string(RZ_FRIDA_TRANSPORT_USB), "usb", "usb transport to string");
+	mu_assert_eq(rz_frida_transport_from_string("remote"), RZ_FRIDA_TRANSPORT_REMOTE, "remote transport from string");
+	mu_end;
+}
+
+static bool test_invalid_uris(void) {
+	RzFridaUri uri = { 0 };
+	mu_assert_false(rz_frida_uri_parse("gdb://attach/local//1234", &uri), "wrong scheme is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://", &uri), "empty path is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://attach/local//", &uri), "missing target is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://attach/usb//1234", &uri), "usb without a device is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://attach/remote/localhost/1234", &uri), "remote without a port is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://attach/other//1234", &uri), "unknown transport is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://other/local//1234", &uri), "unknown action is rejected");
+	mu_assert_false(rz_frida_uri_parse("frida://attach/local/device/1234", &uri), "local with a device is rejected");
+	mu_end;
+}
+
+int all_tests(void) {
+	mu_run_test(test_local_attach_uri);
+	mu_run_test(test_usb_spawn_uri);
+	mu_run_test(test_local_list_uri);
+	mu_run_test(test_launch_path_with_slashes);
+	mu_run_test(test_remote_attach_uri);
+	mu_run_test(test_action_transport_conversion);
+	mu_run_test(test_invalid_uris);
+	return tests_passed != tests_run;
+}
+
+mu_main(all_tests)
