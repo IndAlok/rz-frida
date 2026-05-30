@@ -7,11 +7,7 @@
 #include <rz_frida.h>
 #include <rz_lib.h>
 #include <rz_types.h>
-
-#undef RZ_API
-#define RZ_API static
-#undef RZ_IPI
-#define RZ_IPI static
+#include <cmd_descs.h>
 
 extern RzCorePlugin rz_core_plugin_frida;
 
@@ -19,120 +15,6 @@ typedef struct rz_frida_core_context_t {
 	RzCmdDesc *cmd_desc;
 	RzFridaSession *session;
 } RzFridaCoreContext;
-
-static const RzCmdDescArg cmd_no_args[] = {
-	{ 0 },
-};
-
-static const RzCmdDescDetailEntry cmd_frida_group_session_entries[] = {
-	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
-	{ .text = "fridasj", .arg_str = NULL, .comment = "Print plugin/session status as JSON" },
-	{ 0 },
-};
-
-static const RzCmdDescDetailEntry cmd_frida_group_uri_entries[] = {
-	{ .text = "fridau ", .arg_str = "frida://attach/local//1234", .comment = "Validate URI for attaching to local PID 1234" },
-	{ .text = "fridau ", .arg_str = "frida://spawn/usb/device-1/com.example.app", .comment = "Validate URI for spawning an Android package over USB" },
-	{ .text = "fridau ", .arg_str = "frida://attach/remote/127.0.0.1:27042/4321", .comment = "Validate URI for attaching to PID 4321 over remote frida-server" },
-	{ .text = "fridauj ", .arg_str = "frida://launch/local///bin/ls", .comment = "Validate launch URI for /bin/ls and emit JSON" },
-	{ 0 },
-};
-
-static const RzCmdDescDetailEntry cmd_frida_group_devices_entries[] = {
-	{ .text = "fridadj", .arg_str = NULL, .comment = "Enumerate connected Frida devices as JSON" },
-	{ 0 },
-};
-
-static const RzCmdDescDetail cmd_frida_group_details[] = {
-	{ .name = "Session status", .entries = cmd_frida_group_session_entries },
-	{ .name = "frida:// URI grammar", .entries = cmd_frida_group_uri_entries },
-	{ .name = "Device enumeration", .entries = cmd_frida_group_devices_entries },
-	{ 0 },
-};
-
-static const RzCmdDescHelp cmd_frida_group_help = {
-	.summary = "Interact with Frida targets",
-	.description = "Commands for the rz-frida integration covering plugin and session "
-		       "status, frida:// URI validation, and Frida device enumeration.",
-	.details = cmd_frida_group_details,
-	.args = cmd_no_args,
-};
-
-static const RzCmdDescDetailEntry cmd_fridas_entries[] = {
-	{ .text = "fridas", .arg_str = NULL, .comment = "active and state lines in plain text" },
-	{ .text = "fridasj", .arg_str = NULL, .comment = "Same data wrapped in the rz-frida JSON envelope" },
-	{ 0 },
-};
-
-static const RzCmdDescDetail cmd_fridas_details[] = {
-	{ .name = "Examples", .entries = cmd_fridas_entries },
-	{ 0 },
-};
-
-static const RzCmdDescHelp cmd_fridas_help = {
-	.summary = "Print Frida session status",
-	.description = "Reports whether a session is active and prints the current session state "
-		       "(new, resolved, connecting, attached, detaching, closed, or error).",
-	.details = cmd_fridas_details,
-	.args = cmd_no_args,
-};
-
-static const RzCmdDescArg cmd_fridau_args[] = {
-	{
-		.name = "uri",
-		.type = RZ_CMD_ARG_TYPE_STRING,
-	},
-	{ 0 },
-};
-
-static const RzCmdDescDetailEntry cmd_fridau_grammar_entries[] = {
-	{ .text = "frida://", .arg_str = "<action>/<transport>/<device>/<target>", .comment = "Full grammar for the frida:// URI" },
-	{ .text = "action   ", .arg_str = "= list | apps | attach | spawn | launch", .comment = "Operation requested for the session" },
-	{ .text = "transport", .arg_str = "= local | usb | remote", .comment = "Transport used to reach the Frida target" },
-	{ .text = "device   ", .arg_str = "= empty | device-id | host:port", .comment = "Empty for local, id for USB, host:port for remote" },
-	{ .text = "target   ", .arg_str = "= pid | process-name | package-name | executable-path", .comment = "Target selector required by attach/spawn/launch" },
-	{ 0 },
-};
-
-static const RzCmdDescDetailEntry cmd_fridau_example_entries[] = {
-	{ .text = "fridau ", .arg_str = "frida://attach/local//1234", .comment = "Attach to local PID 1234" },
-	{ .text = "fridau ", .arg_str = "frida://spawn/usb/device-1/com.example.app", .comment = "Spawn an Android package on a USB device" },
-	{ .text = "fridau ", .arg_str = "frida://launch/local///bin/ls", .comment = "Launch /bin/ls locally (note the leading slash in the path)" },
-	{ .text = "fridauj ", .arg_str = "frida://attach/remote/127.0.0.1:27042/4321", .comment = "Validate remote-attach URI and emit JSON" },
-	{ 0 },
-};
-
-static const RzCmdDescDetail cmd_fridau_details[] = {
-	{ .name = "frida:// URI grammar", .entries = cmd_fridau_grammar_entries },
-	{ .name = "Examples", .entries = cmd_fridau_example_entries },
-	{ 0 },
-};
-
-static const RzCmdDescHelp cmd_fridau_help = {
-	.summary = "Validate a frida:// URI",
-	.description = "Parses and validates a frida:// URI without contacting any Frida device. "
-		       "Useful for verifying URI syntax in scripts or CI before attempting to attach.",
-	.details = cmd_fridau_details,
-	.args = cmd_fridau_args,
-};
-
-static const RzCmdDescDetailEntry cmd_fridad_entries[] = {
-	{ .text = "fridadj", .arg_str = NULL, .comment = "List devices as JSON; returns a frida_unavailable error if built without frida-core" },
-	{ 0 },
-};
-
-static const RzCmdDescDetail cmd_fridad_details[] = {
-	{ .name = "Examples", .entries = cmd_fridad_entries },
-	{ 0 },
-};
-
-static const RzCmdDescHelp cmd_fridad_help = {
-	.summary = "List Frida devices",
-	.description = "Enumerates devices known to the Frida device manager (local, USB, and "
-		       "remote) and emits a structured JSON reply.",
-	.details = cmd_fridad_details,
-	.args = cmd_no_args,
-};
 
 static RzFridaCoreContext *frida_context(RzCore *core) {
 	rz_return_val_if_fail(core, NULL);
@@ -256,34 +138,16 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 	if (!ctx) {
 		return false;
 	}
-	ctx->cmd_desc = rz_core_plugin_cmd_desc_group_new(core, "frida", NULL, NULL, &cmd_frida_group_help);
+
+	// The cmd tree is there in src/cmd_descs/cmd_descs.yaml and emitted by
+	// Rizin's cmd_descs_generate.py into cmd_descs.c. rzshell_cmddescs_init registers
+	// the frida group and its subcmds under the cmd root, and we keep the group
+	// descriptor so fini can detach the whole subtree.
+	rzshell_cmddescs_init(core);
+	ctx->cmd_desc = rz_cmd_get_desc(core->rcmd, "frida");
 	if (!ctx->cmd_desc) {
 		frida_context_free(ctx);
 		rz_warn_if_reached();
-		return false;
-	}
-
-	RzCmdDesc *fridas = rz_cmd_desc_argv_state_new(core->rcmd, ctx->cmd_desc, "fridas",
-		RZ_OUTPUT_MODE_STANDARD | RZ_OUTPUT_MODE_JSON, rz_cmd_fridas_handler, &cmd_fridas_help);
-	if (!fridas) {
-		rz_core_plugin_cmd_desc_remove(core, ctx->cmd_desc);
-		frida_context_free(ctx);
-		return false;
-	}
-
-	RzCmdDesc *fridau = rz_cmd_desc_argv_state_new(core->rcmd, ctx->cmd_desc, "fridau",
-		RZ_OUTPUT_MODE_STANDARD | RZ_OUTPUT_MODE_JSON, rz_cmd_fridau_handler, &cmd_fridau_help);
-	if (!fridau) {
-		rz_core_plugin_cmd_desc_remove(core, ctx->cmd_desc);
-		frida_context_free(ctx);
-		return false;
-	}
-
-	RzCmdDesc *fridad = rz_cmd_desc_argv_state_new(core->rcmd, ctx->cmd_desc, "fridad",
-		RZ_OUTPUT_MODE_JSON, rz_cmd_fridad_handler, &cmd_fridad_help);
-	if (!fridad) {
-		rz_core_plugin_cmd_desc_remove(core, ctx->cmd_desc);
-		frida_context_free(ctx);
 		return false;
 	}
 

@@ -3,18 +3,26 @@
 
 #include <rz_frida.h>
 
+/**
+ * \brief Mutable state backing an \ref RzFridaSession handle.
+ *
+ * Tracks the resolved target, lifecycle bookkeeping, and frida-core 
+ * handles the backend owns while a session is connected. The
+ * void pointers stay typeless here so this header-free struct does not pull
+ * in frida-core for callers that only need the session API.
+ */
 struct rz_frida_session_t {
-	ut64 id;
-	RzFridaSessionState state;
-	RzFridaUri uri;
-	ut64 timeout_ms;
-	bool cancel_requested;
-	char *last_error;
-	void *device_manager;
-	void *device;
-	void *session;
-	void *script;
-	void *cancellable;
+	ut64 id; ///< Numeric session identifier.
+	RzFridaSessionState state; ///< Current lifecycle state.
+	RzFridaUri uri; ///< Owned copy of the resolved target URI.
+	ut64 timeout_ms; ///< Operation timeout in milliseconds.
+	bool cancel_requested; ///< Set when cancellation was requested for the current operation
+	char *last_error; ///< Owned text of the most recent error, or NULL.
+	void *device_manager; ///< frida-core FridaDeviceManager handle.
+	void *device; ///< frida-core FridaDevice handle for the target.
+	void *session; ///< frida-core FridaSession handle.
+	void *script; ///< frida-core FridaScript handle.
+	void *cancellable; ///< GLib GCancellable used to interrupt blocking calls.
 };
 
 RZ_IPI const char *rz_frida_session_state_string(RzFridaSessionState state) {

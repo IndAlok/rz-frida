@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Alok Kumar Mishra <alok16022006@gmail.com>
 // SPDX-License-Identifier: LGPL-3.0-only
 
+// Frida-backed device backend. meson compiles this translation unit only when
+// frida-core is available and linkable, builds without frida-core compile
+// rz_frida_backend_null.c in its place.
+
 #include <rz_frida.h>
 
-#ifndef RZ_FRIDA_HAVE_FRIDA_CORE
-#define RZ_FRIDA_HAVE_FRIDA_CORE 0
-#endif
-
-#if RZ_FRIDA_HAVE_FRIDA_CORE
 #include <frida-core.h>
 
 static const char *device_type_string(FridaDeviceType type) {
@@ -22,9 +21,7 @@ static const char *device_type_string(FridaDeviceType type) {
 		return "unknown";
 	}
 }
-#endif
 
-#if RZ_FRIDA_HAVE_FRIDA_CORE
 RZ_IPI bool rz_frida_devices_json(PJ *pj) {
 	rz_return_val_if_fail(pj, false);
 
@@ -82,10 +79,3 @@ cleanup:
 	frida_deinit();
 	return ok;
 }
-#else
-RZ_IPI bool rz_frida_devices_json(PJ *pj) {
-	rz_return_val_if_fail(pj, false);
-	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
-	return false;
-}
-#endif

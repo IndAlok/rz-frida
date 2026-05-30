@@ -75,15 +75,17 @@ endif
 
 if frida_core_enabled
   rz_frida_deps += frida_core_dep
-  rz_frida_c_args += ['-DRZ_FRIDA_HAVE_FRIDA_CORE=1']
+  rz_frida_backend_src = 'src/rz_frida_backend.c'
 else
-  rz_frida_c_args += ['-DRZ_FRIDA_HAVE_FRIDA_CORE=0']
+  rz_frida_backend_src = 'src/rz_frida_backend_null.c'
 endif
 
-rz_frida_incs = include_directories('include')
+rz_frida_incs = include_directories('include', 'src/cmd_descs')
+rz_frida_test_incs = include_directories('include', 'src/cmd_descs', 'tests')
 
 rz_frida_src = [
-  'src/rz_frida_backend.c',
+  rz_frida_backend_src,
+  'src/cmd_descs/cmd_descs.c',
   'src/rz_frida_plugin.c',
   'src/rz_frida_protocol.c',
   'src/rz_frida_session.c',
@@ -113,7 +115,7 @@ test_uri = executable('test_uri',
   ['tests/test_uri.c', 'src/rz_frida_uri.c'],
   c_args: rz_frida_include_args,
   dependencies: rz_core_dep,
-  include_directories: rz_frida_incs,
+  include_directories: rz_frida_test_incs,
 )
 
 test('uri parser', test_uri)
@@ -122,7 +124,7 @@ test_session = executable('test_session',
   ['tests/test_session.c', 'src/rz_frida_session.c', 'src/rz_frida_uri.c'],
   c_args: rz_frida_include_args,
   dependencies: rz_core_dep,
-  include_directories: rz_frida_incs,
+  include_directories: rz_frida_test_incs,
 )
 
 test('session lifecycle', test_session)
@@ -131,16 +133,16 @@ test_protocol = executable('test_protocol',
   ['tests/test_protocol.c', 'src/rz_frida_protocol.c'],
   c_args: rz_frida_include_args,
   dependencies: rz_core_dep,
-  include_directories: rz_frida_incs,
+  include_directories: rz_frida_test_incs,
 )
 
 test('protocol helpers', test_protocol)
 
 test_backend = executable('test_backend',
-  ['tests/test_backend.c', 'src/rz_frida_backend.c', 'src/rz_frida_protocol.c'],
-  c_args: rz_frida_include_args + ['-DRZ_FRIDA_HAVE_FRIDA_CORE=0'],
+  ['tests/test_backend.c', 'src/rz_frida_backend_null.c', 'src/rz_frida_protocol.c'],
+  c_args: rz_frida_include_args,
   dependencies: rz_core_dep,
-  include_directories: rz_frida_incs,
+  include_directories: rz_frida_test_incs,
 )
 
 test('backend unavailable response', test_backend)
@@ -148,7 +150,8 @@ test('backend unavailable response', test_backend)
 test_plugin = executable('test_plugin',
   [
     'tests/test_plugin.c',
-    'src/rz_frida_backend.c',
+    rz_frida_backend_src,
+    'src/cmd_descs/cmd_descs.c',
     'src/rz_frida_plugin.c',
     'src/rz_frida_protocol.c',
     'src/rz_frida_session.c',
@@ -156,7 +159,7 @@ test_plugin = executable('test_plugin',
   ],
   c_args: rz_frida_c_args + rz_frida_include_args,
   dependencies: rz_frida_deps,
-  include_directories: rz_frida_incs,
+  include_directories: rz_frida_test_incs,
 )
 
 test('plugin command registration', test_plugin)

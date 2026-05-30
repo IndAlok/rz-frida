@@ -3,71 +3,84 @@
 
 #include <rz_core.h>
 #include <rz_frida.h>
-
-#include <assert.h>
+#include "minunit.h"
 
 extern RzCorePlugin rz_core_plugin_frida;
 
-static void test_plugin_registration(RzCore *core) {
-	assert(rz_core_plugin_add(core, &rz_core_plugin_frida));
-	assert(rz_core_plugin_context_get(core, &rz_core_plugin_frida));
-	assert(rz_cmd_get_desc(core->rcmd, "frida"));
-	assert(rz_cmd_get_desc(core->rcmd, "fridas"));
-	assert(rz_cmd_get_desc(core->rcmd, "fridau"));
-	assert(rz_cmd_get_desc(core->rcmd, "fridad"));
+static bool test_plugin_registration(RzCore *core) {
+	mu_assert_true(rz_core_plugin_add(core, &rz_core_plugin_frida), "register the frida plugin");
+	mu_assert_notnull(rz_core_plugin_context_get(core, &rz_core_plugin_frida), "plugin context is created on registration");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "frida"), "frida group command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridas"), "fridas command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridau"), "fridau command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridad"), "fridad command is registered");
+	mu_end;
 }
 
-static void test_status_command(RzCore *core) {
+static bool test_status_command(RzCore *core) {
 	char *status = rz_core_cmd_str(core, "fridasj");
-	assert(status);
-	assert(RZ_STR_EQ(status, "{\"ok\":true,\"result\":{\"active\":false,\"state\":\"closed\"}}\n"));
+	mu_assert_notnull(status, "status command returns output");
+	mu_assert_streq(status, "{\"ok\":true,\"result\":{\"active\":false,\"state\":\"closed\"}}\n", "status reports an inactive session");
 	RZ_FREE(status);
+	mu_end;
 }
 
-static void test_uri_command(RzCore *core) {
+static bool test_uri_command(RzCore *core) {
 	char *uri = rz_core_cmd_str(core, "fridauj frida://attach/local//1234");
-	assert(uri);
-	assert(RZ_STR_EQ(uri,
-		"{\"ok\":true,\"result\":{\"action\":\"attach\",\"transport\":\"local\",\"device\":\"\",\"target\":\"1234\"}}\n"));
+	mu_assert_notnull(uri, "uri command returns output");
+	mu_assert_streq(uri,
+		"{\"ok\":true,\"result\":{\"action\":\"attach\",\"transport\":\"local\",\"device\":\"\",\"target\":\"1234\"}}\n",
+		"uri command echoes the parsed components");
 	RZ_FREE(uri);
+	mu_end;
 }
 
-static void test_invalid_uri_command(RzCore *core) {
+static bool test_invalid_uri_command(RzCore *core) {
 	char *uri = rz_core_cmd_str(core, "fridauj gdb://attach/local//1234");
-	assert(uri);
-	assert(RZ_STR_EQ(uri,
-		"{\"ok\":false,\"error\":{\"code\":\"invalid_uri\",\"message\":\"invalid Frida URI\"}}\n"));
+	mu_assert_notnull(uri, "uri command returns output");
+	mu_assert_streq(uri,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_uri\",\"message\":\"invalid Frida URI\"}}\n",
+		"uri command rejects a non-frida scheme");
 	RZ_FREE(uri);
+	mu_end;
 }
 
-static void test_devices_command(RzCore *core) {
+static bool test_devices_command(RzCore *core) {
 	char *devices = rz_core_cmd_str(core, "fridadj");
-	assert(devices);
-	assert(rz_str_startswith(devices, "{\"ok\":false,\"error\":{\"code\":\"") ||
-		rz_str_startswith(devices, "{\"ok\":true,\"result\":{\"devices\":["));
+	mu_assert_notnull(devices, "devices command returns output");
+	mu_assert_true(rz_str_startswith(devices, "{\"ok\":false,\"error\":{\"code\":\"") ||
+			rz_str_startswith(devices, "{\"ok\":true,\"result\":{\"devices\":["),
+		"devices command emits an ok or error envelope");
 	RZ_FREE(devices);
+	mu_end;
 }
 
-static void test_plugin_unregistration(RzCore *core) {
-	assert(rz_core_plugin_del(core, &rz_core_plugin_frida));
-	assert(!rz_core_plugin_context_get(core, &rz_core_plugin_frida));
-	assert(!rz_cmd_get_desc(core->rcmd, "frida"));
-	assert(!rz_cmd_get_desc(core->rcmd, "fridas"));
-	assert(!rz_cmd_get_desc(core->rcmd, "fridau"));
-	assert(!rz_cmd_get_desc(core->rcmd, "fridad"));
+static bool test_plugin_unregistration(RzCore *core) {
+	mu_assert_true(rz_core_plugin_del(core, &rz_core_plugin_frida), "unregister the frida plugin");
+	mu_assert_null(rz_core_plugin_context_get(core, &rz_core_plugin_frida), "plugin context is released on unregistration");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "frida"), "frida group command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridas"), "fridas command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridau"), "fridau command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridad"), "fridad command is removed");
+	mu_end;
 }
 
-int main(void) {
+int all_tests(void) {
 	RzCore *core = rz_core_new();
-	assert(core);
+	if (!core) {
+		printf("Cannot create RzCore\n");
+		return 1;
+	}
 
-	test_plugin_registration(core);
-	test_status_command(core);
-	test_uri_command(core);
-	test_invalid_uri_command(core);
-	test_devices_command(core);
-	test_plugin_unregistration(core);
+	mu_run_test(test_plugin_registration, core);
+	mu_run_test(test_status_command, core);
+	mu_run_test(test_uri_command, core);
+	mu_run_test(test_invalid_uri_command, core);
+	mu_run_test(test_devices_command, core);
+	mu_run_test(test_plugin_unregistration, core);
 
 	rz_core_free(core);
-	return 0;
+	return tests_passed != tests_run;
 }
+
+mu_main(all_tests)

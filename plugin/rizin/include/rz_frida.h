@@ -15,7 +15,7 @@
 typedef enum rz_frida_action_t {
 	RZ_FRIDA_ACTION_UNKNOWN = 0, ///< Unknown or unsupported action.
 	RZ_FRIDA_ACTION_LIST, ///< List devices for a transport.
-	RZ_FRIDA_ACTION_APPS, ///< List applications for a target device.
+	RZ_FRIDA_ACTION_APPS, ///< List applications of a target device.
 	RZ_FRIDA_ACTION_ATTACH, ///< Attach to an existing process.
 	RZ_FRIDA_ACTION_SPAWN, ///< Spawn a new process without resuming it yet.
 	RZ_FRIDA_ACTION_LAUNCH, ///< Launch a process and prepare a session.
@@ -121,6 +121,17 @@ RZ_IPI void rz_frida_json_ok_end(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_ok_empty(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_error(RZ_NONNULL PJ *pj, RzFridaError error, RZ_NULLABLE const char *message);
 
+/**
+ * \brief Enumerate the available Frida devices into a JSON envelope.
+ *
+ * Writes an ok:true envelope carrying a "devices" array on success, or an
+ * ok:false error envelope on failure. When the plugin is built without
+ * frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the device list was emitted, false on any error.
+ */
 RZ_IPI bool rz_frida_devices_json(RZ_NONNULL PJ *pj);
 
 #endif
