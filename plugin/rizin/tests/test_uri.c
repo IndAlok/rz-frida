@@ -64,6 +64,26 @@ static bool test_action_transport_conversion(void) {
 	mu_end;
 }
 
+static bool test_target_pid_parsing(void) {
+	ut32 pid = 1;
+	mu_assert_true(rz_frida_uri_target_pid("1234", &pid), "decimal target parses as a pid");
+	mu_assert_eq(pid, 1234, "parsed pid keeps its value");
+	mu_assert_true(rz_frida_uri_target_pid("0", &pid), "zero parses as a pid");
+	mu_assert_eq(pid, 0, "zero pid keeps its value");
+	mu_assert_true(rz_frida_uri_target_pid("4294967295", &pid), "ut32 max parses as a pid");
+	mu_assert_eq(pid, UT32_MAX, "ut32 max keeps its value");
+
+	mu_assert_false(rz_frida_uri_target_pid("", &pid), "empty target is not a pid");
+	mu_assert_false(rz_frida_uri_target_pid("com.example.app", &pid), "package name is not a pid");
+	mu_assert_false(rz_frida_uri_target_pid("/bin/ls", &pid), "path is not a pid");
+	mu_assert_false(rz_frida_uri_target_pid("12ab", &pid), "trailing letters reject the pid");
+	mu_assert_false(rz_frida_uri_target_pid("0x10", &pid), "hex notation is not a decimal pid");
+	mu_assert_false(rz_frida_uri_target_pid("-1", &pid), "negative numbers are not a pid");
+	mu_assert_false(rz_frida_uri_target_pid("4294967296", &pid), "value above ut32 max is rejected");
+	mu_assert_false(rz_frida_uri_target_pid("99999999999999999999", &pid), "overflowing value is rejected");
+	mu_end;
+}
+
 static bool test_invalid_uris(void) {
 	RzFridaUri uri = { 0 };
 	mu_assert_false(rz_frida_uri_parse("gdb://attach/local//1234", &uri), "wrong scheme is rejected");
@@ -84,6 +104,7 @@ int all_tests(void) {
 	mu_run_test(test_launch_path_with_slashes);
 	mu_run_test(test_remote_attach_uri);
 	mu_run_test(test_action_transport_conversion);
+	mu_run_test(test_target_pid_parsing);
 	mu_run_test(test_invalid_uris);
 	return tests_passed != tests_run;
 }

@@ -11,7 +11,7 @@ The plugin provides:
 - `frida://` URI validation
 - session ownership, timeout, and cancellation primitives
 - structured status and error replies
-- structured device enumeration when `frida-core` is enabled
+- structured device and local process enumeration when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -45,10 +45,11 @@ fridasj
 fridau frida://attach/local//1234
 fridauj frida://attach/local//1234
 fridadj
+fridapj
 ```
 
-`fridadj` returns a structured `frida_unavailable` error when the plugin is built
-without `frida-core`.
+`fridadj` and `fridapj` return a structured `frida_unavailable` error when the
+plugin is built without `frida-core`.
 
 ## Install
 

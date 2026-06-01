@@ -10,7 +10,8 @@
 static const RzCmdDescDetail cmd_fridas_details[2];
 static const RzCmdDescDetail cmd_fridau_details[3];
 static const RzCmdDescDetail cmd_fridad_details[2];
-static const RzCmdDescDetail cmd_frida_details[4];
+static const RzCmdDescDetail cmd_fridap_details[2];
+static const RzCmdDescDetail cmd_frida_details[5];
 static const RzCmdDescArg cmd_fridau_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
@@ -31,15 +32,21 @@ static const RzCmdDescDetailEntry cmd_frida_Device_space_enumeration_detail_entr
 	{ .text = "fridadj", .arg_str = NULL, .comment = "Enumerate connected Frida devices as JSON" },
 	{ 0 },
 };
+
+static const RzCmdDescDetailEntry cmd_frida_Process_space_listing_detail_entries[] = {
+	{ .text = "fridapj", .arg_str = NULL, .comment = "Enumerate local processes as JSON" },
+	{ 0 },
+};
 static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session status", .entries = cmd_frida_Session_space_status_detail_entries },
 	{ .name = "URI grammar", .entries = cmd_frida_URI_space_grammar_detail_entries },
 	{ .name = "Device enumeration", .entries = cmd_frida_Device_space_enumeration_detail_entries },
+	{ .name = "Process listing", .entries = cmd_frida_Process_space_listing_detail_entries },
 	{ 0 },
 };
 static const RzCmdDescHelp cmd_frida_help = {
 	.summary = "Interact with Frida targets",
-	.description = "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, and Frida device enumeration.",
+	.description = "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, and Frida device and process enumeration.",
 	.details = cmd_frida_details,
 };
 static const RzCmdDescDetailEntry cmd_fridas_Examples_detail_entries[] = {
@@ -116,6 +123,24 @@ static const RzCmdDescHelp cmd_fridad_help = {
 	.args = cmd_fridad_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridap_Examples_detail_entries[] = {
+	{ .text = "fridapj", .arg_str = NULL, .comment = "List local processes as JSON; returns a frida_unavailable error if built without frida-core" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridap_details[] = {
+	{ .name = "Examples", .entries = cmd_fridap_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridap_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridap_help = {
+	.summary = "List processes on the local device",
+	.description = "Enumerates the processes visible to the local Frida device and emits a structured JSON reply.",
+	.details = cmd_fridap_details,
+	.args = cmd_fridap_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -130,5 +155,8 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridad_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridad", RZ_OUTPUT_MODE_JSON, rz_cmd_fridad_handler, &cmd_fridad_help);
 	rz_warn_if_fail(cmd_fridad_cd);
+
+	RzCmdDesc *cmd_fridap_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridap", RZ_OUTPUT_MODE_JSON, rz_cmd_fridap_handler, &cmd_fridap_help);
+	rz_warn_if_fail(cmd_fridap_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

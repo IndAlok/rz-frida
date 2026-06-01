@@ -6,7 +6,7 @@ commands:
   - name: frida
     cname: cmd_frida
     summary: "Interact with Frida targets"
-    description: "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, and Frida device enumeration."
+    description: "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, and Frida device and process enumeration."
     details:
       - name: "Session status"
         entries:
@@ -32,6 +32,10 @@ commands:
         entries:
           - text: "fridadj"
             comment: "Enumerate connected Frida devices as JSON"
+      - name: "Process listing"
+        entries:
+          - text: "fridapj"
+            comment: "Enumerate local processes as JSON"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -105,3 +109,16 @@ commands:
             entries:
               - text: "fridadj"
                 comment: "List devices as JSON; returns a frida_unavailable error if built without frida-core"
+      - name: fridap
+        cname: cmd_fridap
+        summary: "List processes on the local device"
+        description: "Enumerates the processes visible to the local Frida device and emits a structured JSON reply."
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridapj"
+                comment: "List local processes as JSON; returns a frida_unavailable error if built without frida-core"

@@ -14,6 +14,7 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridas"), "fridas command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridau"), "fridau command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridad"), "fridad command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridap"), "fridap command is registered");
 	mu_end;
 }
 
@@ -55,6 +56,16 @@ static bool test_devices_command(RzCore *core) {
 	mu_end;
 }
 
+static bool test_processes_command(RzCore *core) {
+	char *processes = rz_core_cmd_str(core, "fridapj");
+	mu_assert_notnull(processes, "processes command returns output");
+	mu_assert_true(rz_str_startswith(processes, "{\"ok\":false,\"error\":{\"code\":\"") ||
+			rz_str_startswith(processes, "{\"ok\":true,\"result\":{\"processes\":["),
+		"processes command emits an ok or error envelope");
+	RZ_FREE(processes);
+	mu_end;
+}
+
 static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_true(rz_core_plugin_del(core, &rz_core_plugin_frida), "unregister the frida plugin");
 	mu_assert_null(rz_core_plugin_context_get(core, &rz_core_plugin_frida), "plugin context is released on unregistration");
@@ -62,6 +73,7 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridas"), "fridas command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridau"), "fridau command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridad"), "fridad command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridap"), "fridap command is removed");
 	mu_end;
 }
 
@@ -77,6 +89,7 @@ int all_tests(void) {
 	mu_run_test(test_uri_command, core);
 	mu_run_test(test_invalid_uri_command, core);
 	mu_run_test(test_devices_command, core);
+	mu_run_test(test_processes_command, core);
 	mu_run_test(test_plugin_unregistration, core);
 
 	rz_core_free(core);

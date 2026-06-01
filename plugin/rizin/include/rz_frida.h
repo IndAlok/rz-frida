@@ -90,6 +90,11 @@ typedef struct rz_frida_uri_t {
  */
 typedef struct rz_frida_session_t RzFridaSession;
 
+/**
+ * \brief Backend cleanup callback run once when a session is freed.
+ */
+typedef void (*RzFridaBackendDispose)(RZ_NONNULL RzFridaSession *session);
+
 RZ_IPI const char *rz_frida_action_string(RzFridaAction action);
 RZ_IPI RzFridaAction rz_frida_action_from_string(RZ_NULLABLE const char *action);
 RZ_IPI const char *rz_frida_transport_string(RzFridaTransport transport);
@@ -98,6 +103,11 @@ RZ_IPI RzFridaTransport rz_frida_transport_from_string(RZ_NULLABLE const char *t
 RZ_IPI bool rz_frida_uri_parse(RZ_NONNULL const char *uri, RZ_NONNULL RzFridaUri *out);
 RZ_IPI bool rz_frida_uri_copy(RZ_NONNULL RzFridaUri *dst, RZ_NONNULL const RzFridaUri *src);
 RZ_IPI void rz_frida_uri_fini(RZ_NULLABLE RzFridaUri *uri);
+
+/**
+ * \brief Parse a decimal only target selector as a process id.
+ */
+RZ_IPI bool rz_frida_uri_target_pid(RZ_NONNULL const char *target, RZ_NONNULL ut32 *pid_out);
 
 RZ_IPI RzFridaSession *rz_frida_session_new(void);
 RZ_IPI void rz_frida_session_free(RZ_NULLABLE RzFridaSession *session);
@@ -111,6 +121,11 @@ RZ_IPI void rz_frida_session_request_cancel(RZ_NONNULL RzFridaSession *session);
 RZ_IPI bool rz_frida_session_is_cancelled(RZ_NONNULL const RzFridaSession *session);
 RZ_IPI void rz_frida_session_set_error(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *message);
 RZ_IPI const char *rz_frida_session_error(RZ_NONNULL const RzFridaSession *session);
+RZ_IPI void rz_frida_session_set_state(RZ_NONNULL RzFridaSession *session, RzFridaSessionState state);
+RZ_IPI void rz_frida_session_set_target_pid(RZ_NONNULL RzFridaSession *session, ut32 pid);
+RZ_IPI ut32 rz_frida_session_target_pid(RZ_NONNULL const RzFridaSession *session);
+RZ_IPI void rz_frida_session_set_backend_state(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE void *backend_state, RZ_NULLABLE RzFridaBackendDispose dispose);
+RZ_IPI void *rz_frida_session_backend_state(RZ_NONNULL const RzFridaSession *session);
 
 RZ_IPI const char *rz_frida_method_string(RzFridaMethod method);
 RZ_IPI RzFridaMethod rz_frida_method_from_string(RZ_NULLABLE const char *method);
@@ -120,6 +135,16 @@ RZ_IPI void rz_frida_json_ok_begin(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_ok_end(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_ok_empty(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_error(RZ_NONNULL PJ *pj, RzFridaError error, RZ_NULLABLE const char *message);
+
+/**
+ * \brief Start the Frida runtime used by the plugin backend.
+ */
+RZ_IPI void rz_frida_backend_init(void);
+
+/**
+ * \brief Stop the Frida runtime used by the plugin backend.
+ */
+RZ_IPI void rz_frida_backend_deinit(void);
 
 /**
  * \brief Enumerate the available Frida devices into a JSON envelope.
@@ -133,5 +158,18 @@ RZ_IPI void rz_frida_json_error(RZ_NONNULL PJ *pj, RzFridaError error, RZ_NULLAB
  * \return true when the device list was emitted, false on any error.
  */
 RZ_IPI bool rz_frida_devices_json(RZ_NONNULL PJ *pj);
+
+/**
+ * \brief Enumerate the processes on the local device into a JSON envelope.
+ *
+ * Writes an ok:true envelope carrying a "processes" array on success, or an
+ * ok:false error envelope on failure. When the plugin is built without frida-core,
+ * a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the process list was emitted, false on any error.
+ */
+RZ_IPI bool rz_frida_processes_json(RZ_NONNULL PJ *pj);
 
 #endif

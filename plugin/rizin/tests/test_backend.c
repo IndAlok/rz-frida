@@ -15,8 +15,20 @@ static bool test_devices_unavailable(void) {
 	mu_end;
 }
 
+static bool test_processes_unavailable(void) {
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	mu_assert_false(rz_frida_processes_json(pj), "process enumeration fails without frida-core");
+	mu_assert_streq(pj_string(pj),
+		"{\"ok\":false,\"error\":{\"code\":\"frida_unavailable\",\"message\":\"frida-core support is not enabled\"}}",
+		"frida-less backend reports the feature as unavailable");
+	pj_free(pj);
+	mu_end;
+}
+
 int all_tests(void) {
 	mu_run_test(test_devices_unavailable);
+	mu_run_test(test_processes_unavailable);
 	return tests_passed != tests_run;
 }
 

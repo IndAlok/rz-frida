@@ -9,6 +9,14 @@
 
 #include <frida-core.h>
 
+RZ_IPI void rz_frida_backend_init(void) {
+	frida_init();
+}
+
+RZ_IPI void rz_frida_backend_deinit(void) {
+	frida_deinit();
+}
+
 static const char *device_type_string(FridaDeviceType type) {
 	switch (type) {
 	case FRIDA_DEVICE_TYPE_LOCAL:
@@ -29,8 +37,6 @@ RZ_IPI bool rz_frida_devices_json(PJ *pj) {
 	GError *error = NULL;
 	FridaDeviceManager *manager = NULL;
 	FridaDeviceList *devices = NULL;
-
-	frida_init();
 
 	manager = frida_device_manager_new();
 	if (!manager) {
@@ -76,6 +82,79 @@ cleanup:
 		frida_device_manager_close_sync(manager, NULL, NULL);
 		frida_unref(manager);
 	}
-	frida_deinit();
+	return ok;
+}
+
+RZ_IPI bool rz_frida_processes_json(PJ *pj) {
+	rz_return_val_if_fail(pj, false);
+
+	bool ok = false;
+	GError *error = NULL;
+	FridaDeviceManager *manager = NULL;
+	FridaDevice *device = NULL;
+	FridaProcessQueryOptions *options = NULL;
+	FridaProcessList *processes = NULL;
+
+	manager = frida_device_manager_new();
+	if (!manager) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create Frida device manager");
+		goto cleanup;
+	}
+
+	device = frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_LOCAL, RZ_FRIDA_DEFAULT_TIMEOUT_MS, NULL, &error);
+	if (!device) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+			error ? error->message : "cannot open the local Frida device");
+		goto cleanup;
+	}
+
+	options = frida_process_query_options_new();
+	if (!options) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create Frida process query options");
+		goto cleanup;
+	}
+
+	processes = frida_device_enumerate_processes_sync(device, options, NULL, &error);
+	if (!processes) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+			error ? error->message : "cannot enumerate local processes");
+		goto cleanup;
+	}
+
+	rz_frida_json_ok_begin(pj);
+	pj_ka(pj, "processes");
+	const gint count = frida_process_list_size(processes);
+	for (gint i = 0; i < count; i++) {
+		FridaProcess *process = frida_process_list_get(processes, i);
+		if (!process) {
+			continue;
+		}
+		pj_o(pj);
+		pj_kn(pj, "pid", frida_process_get_pid(process));
+		pj_ks(pj, "name", frida_process_get_name(process));
+		pj_end(pj);
+		g_object_unref(process);
+	}
+	pj_end(pj);
+	rz_frida_json_ok_end(pj);
+	ok = true;
+
+cleanup:
+	if (error) {
+		g_error_free(error);
+	}
+	if (processes) {
+		frida_unref(processes);
+	}
+	if (options) {
+		frida_unref(options);
+	}
+	if (device) {
+		frida_unref(device);
+	}
+	if (manager) {
+		frida_device_manager_close_sync(manager, NULL, NULL);
+		frida_unref(manager);
+	}
 	return ok;
 }

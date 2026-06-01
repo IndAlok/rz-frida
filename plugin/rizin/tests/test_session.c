@@ -4,6 +4,14 @@
 #include <rz_frida.h>
 #include "minunit.h"
 
+static int dispose_calls = 0;
+static void *disposed_state = NULL;
+
+static void test_backend_dispose(RzFridaSession *session) {
+	dispose_calls++;
+	disposed_state = rz_frida_session_backend_state(session);
+}
+
 static bool test_session_new_state(void) {
 	RzFridaSession *session = rz_frida_session_new();
 	mu_assert_notnull(session, "allocate session");
@@ -65,6 +73,54 @@ static bool test_error_state(void) {
 	mu_end;
 }
 
+static bool test_state_transitions(void) {
+	RzFridaSession *session = rz_frida_session_new();
+	mu_assert_notnull(session, "allocate session");
+
+	rz_frida_session_set_state(session, RZ_FRIDA_SESSION_STATE_CONNECTING);
+	mu_assert_eq(rz_frida_session_state(session), RZ_FRIDA_SESSION_STATE_CONNECTING, "state moves to connecting");
+	mu_assert_eq(rz_frida_session_target_pid(session), 0, "target pid defaults to zero");
+
+	rz_frida_session_set_target_pid(session, 4321);
+	mu_assert_eq(rz_frida_session_target_pid(session), 4321, "target pid reflects the update");
+
+	rz_frida_session_set_state(session, RZ_FRIDA_SESSION_STATE_ATTACHED);
+	mu_assert_eq(rz_frida_session_state(session), RZ_FRIDA_SESSION_STATE_ATTACHED, "state moves to attached");
+
+	rz_frida_session_set_state(session, RZ_FRIDA_SESSION_STATE_CLOSED);
+	mu_assert_eq(rz_frida_session_state(session), RZ_FRIDA_SESSION_STATE_CLOSED, "state moves to closed");
+
+	rz_frida_session_free(session);
+	mu_end;
+}
+
+static bool test_backend_dispose_runs(void) {
+	dispose_calls = 0;
+	disposed_state = NULL;
+	int marker = 0;
+
+	RzFridaSession *session = rz_frida_session_new();
+	mu_assert_notnull(session, "allocate session");
+	mu_assert_null(rz_frida_session_backend_state(session), "backend state starts NULL");
+
+	rz_frida_session_set_backend_state(session, &marker, test_backend_dispose);
+	mu_assert_ptreq(rz_frida_session_backend_state(session), &marker, "backend state is stored");
+
+	rz_frida_session_free(session);
+	mu_assert_eq(dispose_calls, 1, "dispose callback runs exactly once on free");
+	mu_assert_ptreq(disposed_state, &marker, "dispose sees the backend state it owns");
+	mu_end;
+}
+
+static bool test_backend_dispose_optional(void) {
+	int marker = 0;
+	RzFridaSession *session = rz_frida_session_new();
+	mu_assert_notnull(session, "allocate session");
+	rz_frida_session_set_backend_state(session, &marker, NULL);
+	rz_frida_session_free(session);
+	mu_end;
+}
+
 static bool test_free_null(void) {
 	rz_frida_session_free(NULL);
 	mu_end;
@@ -76,6 +132,9 @@ int all_tests(void) {
 	mu_run_test(test_cancellation_flag);
 	mu_run_test(test_uri_assignment);
 	mu_run_test(test_error_state);
+	mu_run_test(test_state_transitions);
+	mu_run_test(test_backend_dispose_runs);
+	mu_run_test(test_backend_dispose_optional);
 	mu_run_test(test_free_null);
 	return tests_passed != tests_run;
 }

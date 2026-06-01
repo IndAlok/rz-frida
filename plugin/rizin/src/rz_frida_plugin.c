@@ -119,6 +119,16 @@ RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
+RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+	// just like fridaj, write JSON and return OK so RzCmd prints it.
+	rz_frida_processes_json(state->d.pj);
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }
@@ -151,16 +161,20 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 		return false;
 	}
 
+	// Frida runtime is plugin wide because sessions can span multiple cmds.
+	rz_frida_backend_init();
+
 	*user = ctx;
 	return true;
 }
 
 static bool rz_frida_plugin_fini(RzCore *core, void *user) {
 	RzFridaCoreContext *ctx = user;
-	rz_return_val_if_fail(ctx, false);
+	rz_return_val_if_fail(core && ctx, false);
 	bool ok = rz_core_plugin_cmd_desc_remove(core, ctx->cmd_desc);
 	ctx->cmd_desc = NULL;
 	frida_context_free(ctx);
+	rz_frida_backend_deinit();
 	return ok;
 }
 
