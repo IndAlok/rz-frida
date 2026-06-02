@@ -12,6 +12,7 @@ The plugin provides:
 - session ownership, timeout, and cancellation primitives
 - structured status and error replies
 - structured device and local process enumeration when `frida-core` is enabled
+- local session control (attach, spawn, launch, and resume) when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -46,10 +47,15 @@ fridau frida://attach/local//1234
 fridauj frida://attach/local//1234
 fridadj
 fridapj
+fridaoj frida://attach/local//1234
+fridaoj frida://spawn/local///bin/ls
+fridarj
 ```
 
-`fridadj` and `fridapj` return a structured `frida_unavailable` error when the
-plugin is built without `frida-core`.
+`fridadj`, `fridapj`, and `fridaoj` return a structured `frida_unavailable` error
+when the plugin is built without `frida-core`. `fridaoj` opens a session on the
+local device (attach, spawn, or launch) and `fridarj` resumes a target that was
+spawned suspended.
 
 ## Install
 

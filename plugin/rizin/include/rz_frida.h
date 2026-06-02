@@ -172,4 +172,32 @@ RZ_IPI bool rz_frida_devices_json(RZ_NONNULL PJ *pj);
  */
 RZ_IPI bool rz_frida_processes_json(RZ_NONNULL PJ *pj);
 
+/**
+ * \brief Open a session for the target described by the session URI.
+ *
+ * Resolves the local device, then attaches to a pid, or spawns or launches the
+ * target before attaching. On success the live Frida handles are stored on the
+ * session and an ok:true envelope carrying the action, pid, and state is
+ * written, and on failure an ok:false envelope is written. When the plugin is built
+ * without frida-core, a self contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session that owns the resolved URI and receives the backend handles.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the session was opened, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_open(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+
+/**
+ * \brief Resume a target that was spawned suspended by \ref rz_frida_backend_open.
+ *
+ * Writes an ok:true envelope on success, or an ok:false envelope when the
+ * session has nothing to resume or the backend is unavailable.
+ *
+ * \param session Session holding the backend handles to resume.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the target was resumed, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_resume(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+
 #endif

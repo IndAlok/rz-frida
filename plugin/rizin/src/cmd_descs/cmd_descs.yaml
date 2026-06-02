@@ -36,6 +36,13 @@ commands:
         entries:
           - text: "fridapj"
             comment: "Enumerate local processes as JSON"
+      - name: "Session control"
+        entries:
+          - text: "fridaoj "
+            arg_str: "frida://spawn/local///bin/ls"
+            comment: "Spawn /bin/ls suspended and open a session"
+          - text: "fridarj"
+            comment: "Resume the spawned target"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -122,3 +129,38 @@ commands:
             entries:
               - text: "fridapj"
                 comment: "List local processes as JSON; returns a frida_unavailable error if built without frida-core"
+      - name: fridao
+        cname: cmd_fridao
+        summary: "Open a Frida session"
+        description: "Opens a session for a frida:// URI on the local device: attach to a pid, spawn a target suspended, or launch and resume it. Stores the live session and emits a structured JSON reply."
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: uri
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaoj "
+                arg_str: "frida://attach/local//1234"
+                comment: "Attach to local PID 1234"
+              - text: "fridaoj "
+                arg_str: "frida://spawn/local///bin/ls"
+                comment: "Spawn /bin/ls suspended and attach; resume later with fridarj"
+              - text: "fridaoj "
+                arg_str: "frida://launch/local///bin/ls"
+                comment: "Launch /bin/ls and resume it immediately"
+      - name: fridar
+        cname: cmd_fridar
+        summary: "Resume the open Frida session"
+        description: "Resumes a target that was spawned suspended by the open command. Emits a structured JSON reply."
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridarj"
+                comment: "Resume the spawned target, and returns an error if no session is open"

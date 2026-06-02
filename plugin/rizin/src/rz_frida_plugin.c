@@ -129,6 +129,71 @@ RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
+RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "frida plugin context is unavailable");
+		return RZ_CMD_STATUS_OK;
+	}
+	if (ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "a session is already open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	RzFridaUri uri = { 0 };
+	if (!rz_frida_uri_parse(argv[1], &uri)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_URI, "invalid Frida URI");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	RzFridaSession *session = rz_frida_session_new();
+	if (!session) {
+		rz_frida_uri_fini(&uri);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate session");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	bool stored = rz_frida_session_set_uri(session, &uri);
+	rz_frida_uri_fini(&uri);
+	if (!stored) {
+		rz_frida_session_free(session);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot store the session URI");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// backend_open writes the envelope either way. only keep the session if it opened.
+	if (!rz_frida_backend_open(session, pj)) {
+		rz_frida_session_free(session);
+		return RZ_CMD_STATUS_OK;
+	}
+
+	ctx->session = session;
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_frida_backend_resume(ctx->session, pj);
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }
