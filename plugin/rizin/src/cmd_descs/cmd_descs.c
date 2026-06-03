@@ -13,6 +13,7 @@ static const RzCmdDescDetail cmd_fridad_details[2];
 static const RzCmdDescDetail cmd_fridap_details[2];
 static const RzCmdDescDetail cmd_fridao_details[2];
 static const RzCmdDescDetail cmd_fridar_details[2];
+static const RzCmdDescDetail cmd_fridac_details[2];
 static const RzCmdDescDetail cmd_frida_details[6];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridao_args[2];
@@ -44,6 +45,7 @@ static const RzCmdDescDetailEntry cmd_frida_Process_space_listing_detail_entries
 static const RzCmdDescDetailEntry cmd_frida_Session_space_control_detail_entries[] = {
 	{ .text = "fridaoj ", .arg_str = "frida://spawn/local///bin/ls", .comment = "Spawn /bin/ls suspended and open a session" },
 	{ .text = "fridarj", .arg_str = NULL, .comment = "Resume the spawned target" },
+	{ .text = "fridacj", .arg_str = NULL, .comment = "Close the open session" },
 	{ 0 },
 };
 static const RzCmdDescDetail cmd_frida_details[] = {
@@ -195,6 +197,24 @@ static const RzCmdDescHelp cmd_fridar_help = {
 	.args = cmd_fridar_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridac_Examples_detail_entries[] = {
+	{ .text = "fridacj", .arg_str = NULL, .comment = "Close the open session and return an error if none is open" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridac_details[] = {
+	{ .name = "Examples", .entries = cmd_fridac_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridac_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridac_help = {
+	.summary = "Close the open Frida session",
+	.description = "Detaches the open session and forgets it. A target that was spawned but never resumed is killed. An attached or launched target keeps running. Emits a structured JSON reply.",
+	.details = cmd_fridac_details,
+	.args = cmd_fridac_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -218,5 +238,8 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridar_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridar", RZ_OUTPUT_MODE_JSON, rz_cmd_fridar_handler, &cmd_fridar_help);
 	rz_warn_if_fail(cmd_fridar_cd);
+
+	RzCmdDesc *cmd_fridac_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridac", RZ_OUTPUT_MODE_JSON, rz_cmd_fridac_handler, &cmd_fridac_help);
+	rz_warn_if_fail(cmd_fridac_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

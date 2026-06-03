@@ -163,6 +163,7 @@ typedef struct rz_frida_backend_session_t {
 	FridaDeviceManager *manager;
 	FridaDevice *device;
 	FridaSession *session;
+	GCancellable *cancellable;
 	guint pid;
 	bool spawned;
 	bool resumed;
@@ -173,6 +174,7 @@ static void backend_session_dispose(RzFridaSession *session) {
 	if (!backend) {
 		return;
 	}
+	rz_frida_session_set_cancel_hook(session, NULL, NULL);
 	if (backend->session) {
 		if (!frida_session_is_detached(backend->session)) {
 			frida_session_detach_sync(backend->session, NULL, NULL);
@@ -190,7 +192,29 @@ static void backend_session_dispose(RzFridaSession *session) {
 		frida_device_manager_close_sync(backend->manager, NULL, NULL);
 		frida_unref(backend->manager);
 	}
+	if (backend->cancellable) {
+		g_object_unref(backend->cancellable);
+	}
 	RZ_FREE(backend);
+}
+
+static void backend_cancel_hook(void *user) {
+	if (user) {
+		g_cancellable_cancel((GCancellable *)user);
+	}
+}
+
+static RzFridaError backend_error_code(GCancellable *cancellable, GError *error) {
+	if (cancellable && g_cancellable_is_cancelled(cancellable)) {
+		return RZ_FRIDA_ERROR_CANCELLED;
+	}
+	if (error && g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
+		return RZ_FRIDA_ERROR_CANCELLED;
+	}
+	if (error && g_error_matches(error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT)) {
+		return RZ_FRIDA_ERROR_TIMEOUT;
+	}
+	return RZ_FRIDA_ERROR_INTERNAL;
 }
 
 RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
@@ -213,6 +237,7 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 
 	bool ok = false;
 	GError *error = NULL;
+	GCancellable *cancellable = NULL;
 	FridaDeviceManager *manager = NULL;
 	FridaDevice *device = NULL;
 	FridaSession *frida_session = NULL;
@@ -222,15 +247,26 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 	bool spawned = false;
 	bool resumed = false;
 
+	cancellable = g_cancellable_new();
+	if (!cancellable) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create the cancellable");
+		goto cleanup;
+	}
+
+	rz_frida_session_set_cancel_hook(session, cancellable, backend_cancel_hook);
+	if (rz_frida_session_is_cancelled(session)) {
+		g_cancellable_cancel(cancellable);
+	}
+
 	manager = frida_device_manager_new();
 	if (!manager) {
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create Frida device manager");
 		goto cleanup;
 	}
 
-	device = frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_LOCAL, RZ_FRIDA_DEFAULT_TIMEOUT_MS, NULL, &error);
+	device = frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_LOCAL, (gint)rz_frida_session_timeout(session), cancellable, &error);
 	if (!device) {
-		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+		rz_frida_json_error(pj, backend_error_code(cancellable, error),
 			error ? error->message : "cannot open the local Frida device");
 		goto cleanup;
 	}
@@ -246,26 +282,26 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create Frida spawn options");
 			goto cleanup;
 		}
-		pid = frida_device_spawn_sync(device, uri->target, spawn_options, NULL, &error);
+		pid = frida_device_spawn_sync(device, uri->target, spawn_options, cancellable, &error);
 		if (error) {
-			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+			rz_frida_json_error(pj, backend_error_code(cancellable, error),
 				error->message ? error->message : "cannot spawn the target");
 			goto cleanup;
 		}
 		spawned = true;
 	}
 
-	frida_session = frida_device_attach_sync(device, pid, NULL, NULL, &error);
+	frida_session = frida_device_attach_sync(device, pid, NULL, cancellable, &error);
 	if (!frida_session) {
-		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+		rz_frida_json_error(pj, backend_error_code(cancellable, error),
 			error ? error->message : "cannot attach to the target");
 		goto cleanup;
 	}
 
 	if (uri->action_type == RZ_FRIDA_ACTION_LAUNCH) {
-		frida_device_resume_sync(device, pid, NULL, &error);
+		frida_device_resume_sync(device, pid, cancellable, &error);
 		if (error) {
-			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+			rz_frida_json_error(pj, backend_error_code(cancellable, error),
 				error->message ? error->message : "cannot resume the launched target");
 			goto cleanup;
 		}
@@ -280,6 +316,7 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 	backend->manager = manager;
 	backend->device = device;
 	backend->session = frida_session;
+	backend->cancellable = cancellable;
 	backend->pid = pid;
 	backend->spawned = spawned;
 	backend->resumed = resumed;
@@ -299,6 +336,7 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 	manager = NULL;
 	device = NULL;
 	frida_session = NULL;
+	cancellable = NULL;
 	ok = true;
 
 cleanup:
@@ -322,6 +360,11 @@ cleanup:
 		frida_device_manager_close_sync(manager, NULL, NULL);
 		frida_unref(manager);
 	}
+	if (cancellable) {
+		// failed open, clear hook before releasing cancellable
+		rz_frida_session_set_cancel_hook(session, NULL, NULL);
+		g_object_unref(cancellable);
+	}
 	return ok;
 }
 
@@ -342,10 +385,13 @@ RZ_IPI bool rz_frida_backend_resume(RzFridaSession *session, PJ *pj) {
 		return false;
 	}
 
+	if (backend->cancellable) {
+		g_cancellable_reset(backend->cancellable);
+	}
 	GError *error = NULL;
-	frida_device_resume_sync(backend->device, backend->pid, NULL, &error);
+	frida_device_resume_sync(backend->device, backend->pid, backend->cancellable, &error);
 	if (error) {
-		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+		rz_frida_json_error(pj, backend_error_code(backend->cancellable, error),
 			error->message ? error->message : "cannot resume the target");
 		g_error_free(error);
 		return false;
@@ -355,6 +401,39 @@ RZ_IPI bool rz_frida_backend_resume(RzFridaSession *session, PJ *pj) {
 	rz_frida_json_ok_begin(pj);
 	pj_kn(pj, "pid", backend->pid);
 	pj_kb(pj, "resumed", true);
+	pj_ks(pj, "state", rz_frida_session_state_string(rz_frida_session_state(session)));
+	rz_frida_json_ok_end(pj);
+	return true;
+}
+
+RZ_IPI bool rz_frida_backend_close(RzFridaSession *session, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "session has no backend state");
+		return false;
+	}
+
+	rz_frida_session_set_state(session, RZ_FRIDA_SESSION_STATE_DETACHING);
+	if (backend->cancellable) {
+		g_cancellable_reset(backend->cancellable);
+	}
+	GError *error = NULL;
+	if (backend->session && !frida_session_is_detached(backend->session)) {
+		frida_session_detach_sync(backend->session, backend->cancellable, &error);
+		if (error) {
+			rz_frida_session_set_state(session, RZ_FRIDA_SESSION_STATE_ERROR);
+			rz_frida_json_error(pj, backend_error_code(backend->cancellable, error),
+				error->message ? error->message : "cannot detach from the target");
+			g_error_free(error);
+			return false;
+		}
+	}
+	rz_frida_session_set_state(session, RZ_FRIDA_SESSION_STATE_CLOSED);
+
+	rz_frida_json_ok_begin(pj);
+	pj_kn(pj, "pid", backend->pid);
 	pj_ks(pj, "state", rz_frida_session_state_string(rz_frida_session_state(session)));
 	rz_frida_json_ok_end(pj);
 	return true;

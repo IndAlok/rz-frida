@@ -43,6 +43,8 @@ commands:
             comment: "Spawn /bin/ls suspended and open a session"
           - text: "fridarj"
             comment: "Resume the spawned target"
+          - text: "fridacj"
+            comment: "Close the open session"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -164,3 +166,16 @@ commands:
             entries:
               - text: "fridarj"
                 comment: "Resume the spawned target, and returns an error if no session is open"
+      - name: fridac
+        cname: cmd_fridac
+        summary: "Close the open Frida session"
+        description: "Detaches the open session and forgets it. A target that was spawned but never resumed is killed. An attached or launched target keeps running. Emits a structured JSON reply."
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridacj"
+                comment: "Close the open session, and return an error if none is open"

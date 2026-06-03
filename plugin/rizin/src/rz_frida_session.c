@@ -21,6 +21,8 @@ struct rz_frida_session_t {
 	ut32 target_pid; ///< Process id resolved once the session attaches, spawns, or launches.
 	void *backend_state; ///< frida-core handles owned by the backend, or NULL.
 	RzFridaBackendDispose backend_dispose; ///< Releases backend_state during free, or NULL.
+	void *cancel_user; ///< User data passed to cancel_hook, or NULL.
+	RzFridaCancelHook cancel_hook; ///< Cancels the current backend operation, or NULL.
 };
 
 RZ_IPI const char *rz_frida_session_state_string(RzFridaSessionState state) {
@@ -102,6 +104,9 @@ RZ_IPI ut64 rz_frida_session_timeout(const RzFridaSession *session) {
 RZ_IPI void rz_frida_session_request_cancel(RzFridaSession *session) {
 	rz_return_if_fail(session);
 	session->cancel_requested = true;
+	if (session->cancel_hook) {
+		session->cancel_hook(session->cancel_user);
+	}
 }
 
 RZ_IPI bool rz_frida_session_is_cancelled(const RzFridaSession *session) {
@@ -149,4 +154,10 @@ RZ_IPI void rz_frida_session_set_backend_state(RzFridaSession *session, void *ba
 RZ_IPI void *rz_frida_session_backend_state(const RzFridaSession *session) {
 	rz_return_val_if_fail(session, NULL);
 	return session->backend_state;
+}
+
+RZ_IPI void rz_frida_session_set_cancel_hook(RzFridaSession *session, void *user, RzFridaCancelHook hook) {
+	rz_return_if_fail(session);
+	session->cancel_user = user;
+	session->cancel_hook = hook;
 }

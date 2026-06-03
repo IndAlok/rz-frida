@@ -28,16 +28,27 @@ static RzCmdStatus print_status(RzCore *core, RzCmdStateOutput *state) {
 	const RzFridaSession *session = ctx ? ctx->session : NULL;
 	const bool active = session != NULL;
 	const char *state_string = session ? rz_frida_session_state_string(rz_frida_session_state(session)) : "closed";
+	const RzFridaUri *uri = session ? rz_frida_session_uri(session) : NULL;
 
 	switch (state->mode) {
 	case RZ_OUTPUT_MODE_STANDARD:
 		rz_cons_printf("active: %s\n", rz_str_bool(active));
 		rz_cons_printf("state: %s\n", state_string);
+		if (session) {
+			rz_cons_printf("pid: %u\n", rz_frida_session_target_pid(session));
+			rz_cons_printf("action: %s\n", uri->action);
+			rz_cons_printf("target: %s\n", uri->target);
+		}
 		return RZ_CMD_STATUS_OK;
 	case RZ_OUTPUT_MODE_JSON:
 		rz_frida_json_ok_begin(state->d.pj);
 		pj_kb(state->d.pj, "active", active);
 		pj_ks(state->d.pj, "state", state_string);
+		if (session) {
+			pj_kn(state->d.pj, "pid", rz_frida_session_target_pid(session));
+			pj_ks(state->d.pj, "action", uri->action);
+			pj_ks(state->d.pj, "target", uri->target);
+		}
 		rz_frida_json_ok_end(state->d.pj);
 		return RZ_CMD_STATUS_OK;
 	default:
@@ -191,6 +202,27 @@ RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const
 	}
 
 	rz_frida_backend_resume(ctx->session, pj);
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// close writes reply, free releases backend state and clears slot
+	if (rz_frida_backend_close(ctx->session, pj)) {
+		rz_frida_session_free(ctx->session);
+		ctx->session = NULL;
+	}
 	return RZ_CMD_STATUS_OK;
 }
 

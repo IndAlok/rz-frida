@@ -12,6 +12,14 @@ static void test_backend_dispose(RzFridaSession *session) {
 	disposed_state = rz_frida_session_backend_state(session);
 }
 
+static int cancel_calls = 0;
+static void *cancel_user = NULL;
+
+static void record_cancel(void *user) {
+	cancel_calls++;
+	cancel_user = user;
+}
+
 static bool test_session_new_state(void) {
 	RzFridaSession *session = rz_frida_session_new();
 	mu_assert_notnull(session, "allocate session");
@@ -38,6 +46,27 @@ static bool test_cancellation_flag(void) {
 	mu_assert_notnull(session, "allocate session");
 	rz_frida_session_request_cancel(session);
 	mu_assert_true(rz_frida_session_is_cancelled(session), "cancellation flag is set after a request");
+	rz_frida_session_free(session);
+	mu_end;
+}
+
+static bool test_cancel_hook_runs(void) {
+	cancel_calls = 0;
+	cancel_user = NULL;
+	int marker = 0;
+
+	RzFridaSession *session = rz_frida_session_new();
+	mu_assert_notnull(session, "allocate session");
+	rz_frida_session_set_cancel_hook(session, &marker, record_cancel);
+	rz_frida_session_request_cancel(session);
+	mu_assert_eq(cancel_calls, 1, "request_cancel invokes the cancel hook once");
+	mu_assert_ptreq(cancel_user, &marker, "cancel hook receives its user data");
+	mu_assert_true(rz_frida_session_is_cancelled(session), "cancellation flag is set alongside the hook");
+
+	rz_frida_session_set_cancel_hook(session, NULL, NULL);
+	rz_frida_session_request_cancel(session);
+	mu_assert_eq(cancel_calls, 1, "a cleared hook is not called again");
+
 	rz_frida_session_free(session);
 	mu_end;
 }
@@ -130,6 +159,7 @@ int all_tests(void) {
 	mu_run_test(test_session_new_state);
 	mu_run_test(test_timeout_update);
 	mu_run_test(test_cancellation_flag);
+	mu_run_test(test_cancel_hook_runs);
 	mu_run_test(test_uri_assignment);
 	mu_run_test(test_error_state);
 	mu_run_test(test_state_transitions);

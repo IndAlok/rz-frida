@@ -95,6 +95,11 @@ typedef struct rz_frida_session_t RzFridaSession;
  */
 typedef void (*RzFridaBackendDispose)(RZ_NONNULL RzFridaSession *session);
 
+/**
+ * \brief Callback used to cancel a running backend operation.
+ */
+typedef void (*RzFridaCancelHook)(RZ_NULLABLE void *user);
+
 RZ_IPI const char *rz_frida_action_string(RzFridaAction action);
 RZ_IPI RzFridaAction rz_frida_action_from_string(RZ_NULLABLE const char *action);
 RZ_IPI const char *rz_frida_transport_string(RzFridaTransport transport);
@@ -126,6 +131,13 @@ RZ_IPI void rz_frida_session_set_target_pid(RZ_NONNULL RzFridaSession *session, 
 RZ_IPI ut32 rz_frida_session_target_pid(RZ_NONNULL const RzFridaSession *session);
 RZ_IPI void rz_frida_session_set_backend_state(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE void *backend_state, RZ_NULLABLE RzFridaBackendDispose dispose);
 RZ_IPI void *rz_frida_session_backend_state(RZ_NONNULL const RzFridaSession *session);
+
+/**
+ * \brief Register the hook that \ref rz_frida_session_request_cancel invokes.
+ *
+ * Pass NULL to clear it before the hook user data is released.
+ */
+RZ_IPI void rz_frida_session_set_cancel_hook(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE void *user, RZ_NULLABLE RzFridaCancelHook hook);
 
 RZ_IPI const char *rz_frida_method_string(RzFridaMethod method);
 RZ_IPI RzFridaMethod rz_frida_method_from_string(RZ_NULLABLE const char *method);
@@ -199,5 +211,20 @@ RZ_IPI bool rz_frida_backend_open(RZ_NONNULL RzFridaSession *session, RZ_NONNULL
  * \return true when the target was resumed, false on any error.
  */
 RZ_IPI bool rz_frida_backend_resume(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+
+/**
+ * \brief Detach the open session and report it as closed.
+ *
+ * Detaches from the target and writes an ok:true envelope carrying the pid and
+ * final state. The caller frees the session afterwards, which kills a target
+ * that was spawned but never resumed and releases the remaining handles. When
+ * the plugin is built without frida-core, a self-contained implementation
+ * reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the backend handles to detach.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the session was closed, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_close(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 
 #endif
