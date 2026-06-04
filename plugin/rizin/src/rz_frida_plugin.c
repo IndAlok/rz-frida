@@ -130,14 +130,44 @@ RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
-	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+static RzCmdStatus run_device_listing(int argc, const char **argv, RzCmdStateOutput *state,
+	RzFridaAction action, bool (*list)(const RzFridaUri *uri, PJ *pj)) {
+	rz_return_val_if_fail(argv && state && list, RZ_CMD_STATUS_ERROR);
+
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
 	}
-	// just like fridaj, write JSON and return OK so RzCmd prints it.
-	rz_frida_processes_json(state->d.pj);
+
+	PJ *pj = state->d.pj;
+	const char *uri_string = (argc > 1) ? argv[1] : NULL;
+	if (!RZ_STR_ISNOTEMPTY(uri_string)) {
+		list(NULL, pj);
+		return RZ_CMD_STATUS_OK;
+	}
+
+	RzFridaUri uri = { 0 };
+	if (!rz_frida_uri_parse(uri_string, &uri)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_URI, "invalid Frida URI");
+		return RZ_CMD_STATUS_OK;
+	}
+	if (uri.action_type != action) {
+		rz_frida_uri_fini(&uri);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_URI, "URI action does not match the command");
+		return RZ_CMD_STATUS_OK;
+	}
+	list(&uri, pj);
+	rz_frida_uri_fini(&uri);
 	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_LIST, rz_frida_processes_json);
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaa_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_APPS, rz_frida_apps_json);
 }
 
 RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
@@ -258,7 +288,10 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 		return false;
 	}
 
-	// Frida runtime is plugin wide because sessions can span multiple cmds.
+	// The cmd tree is there in src/cmd_descs/cmd_descs.yaml and emitted by
+	// Rizin's cmd_descs_generate.py into cmd_descs.c. rzshell_cmddescs_init registers
+	// the frida group and its subcmds under the cmd root, and we keep the group
+	// descriptor so fini can detach the whole subtree.
 	rz_frida_backend_init();
 
 	*user = ctx;

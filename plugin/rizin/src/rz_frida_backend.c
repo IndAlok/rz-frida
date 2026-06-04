@@ -30,6 +30,35 @@ static const char *device_type_string(FridaDeviceType type) {
 	}
 }
 
+static RzFridaError backend_error_code(GCancellable *cancellable, GError *error);
+
+static FridaDevice *backend_resolve_device(FridaDeviceManager *manager, const RzFridaUri *uri, gint timeout, GCancellable *cancellable, GError **error) {
+	rz_return_val_if_fail(manager, NULL);
+
+	RzFridaTransport transport = uri ? uri->transport_type : RZ_FRIDA_TRANSPORT_LOCAL;
+	switch (transport) {
+	case RZ_FRIDA_TRANSPORT_USB:
+		if (uri && RZ_STR_ISNOTEMPTY(uri->device)) {
+			return frida_device_manager_get_device_by_id_sync(manager, uri->device, timeout, cancellable, error);
+		}
+		return frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_USB, timeout, cancellable, error);
+	case RZ_FRIDA_TRANSPORT_REMOTE: {
+		FridaRemoteDeviceOptions *options = frida_remote_device_options_new();
+		if (!options) {
+			return NULL;
+		}
+		FridaDevice *device = frida_device_manager_add_remote_device_sync(manager, uri ? uri->device : "", options, cancellable, error);
+		frida_unref(options);
+		return device;
+	}
+	case RZ_FRIDA_TRANSPORT_LOCAL:
+		return frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_LOCAL, timeout, cancellable, error);
+	case RZ_FRIDA_TRANSPORT_UNKNOWN:
+	default:
+		return NULL;
+	}
+}
+
 RZ_IPI bool rz_frida_devices_json(PJ *pj) {
 	rz_return_val_if_fail(pj, false);
 
@@ -85,7 +114,7 @@ cleanup:
 	return ok;
 }
 
-RZ_IPI bool rz_frida_processes_json(PJ *pj) {
+RZ_IPI bool rz_frida_processes_json(const RzFridaUri *uri, PJ *pj) {
 	rz_return_val_if_fail(pj, false);
 
 	bool ok = false;
@@ -101,10 +130,10 @@ RZ_IPI bool rz_frida_processes_json(PJ *pj) {
 		goto cleanup;
 	}
 
-	device = frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_LOCAL, RZ_FRIDA_DEFAULT_TIMEOUT_MS, NULL, &error);
+	device = backend_resolve_device(manager, uri, RZ_FRIDA_DEFAULT_TIMEOUT_MS, NULL, &error);
 	if (!device) {
-		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
-			error ? error->message : "cannot open the local Frida device");
+		rz_frida_json_error(pj, backend_error_code(NULL, error),
+			error ? error->message : "cannot open the Frida device");
 		goto cleanup;
 	}
 
@@ -116,8 +145,8 @@ RZ_IPI bool rz_frida_processes_json(PJ *pj) {
 
 	processes = frida_device_enumerate_processes_sync(device, options, NULL, &error);
 	if (!processes) {
-		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
-			error ? error->message : "cannot enumerate local processes");
+		rz_frida_json_error(pj, backend_error_code(NULL, error),
+			error ? error->message : "cannot enumerate processes");
 		goto cleanup;
 	}
 
@@ -145,6 +174,81 @@ cleanup:
 	}
 	if (processes) {
 		frida_unref(processes);
+	}
+	if (options) {
+		frida_unref(options);
+	}
+	if (device) {
+		frida_unref(device);
+	}
+	if (manager) {
+		frida_device_manager_close_sync(manager, NULL, NULL);
+		frida_unref(manager);
+	}
+	return ok;
+}
+
+RZ_IPI bool rz_frida_apps_json(const RzFridaUri *uri, PJ *pj) {
+	rz_return_val_if_fail(pj, false);
+
+	bool ok = false;
+	GError *error = NULL;
+	FridaDeviceManager *manager = NULL;
+	FridaDevice *device = NULL;
+	FridaApplicationQueryOptions *options = NULL;
+	FridaApplicationList *apps = NULL;
+
+	manager = frida_device_manager_new();
+	if (!manager) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create Frida device manager");
+		goto cleanup;
+	}
+
+	device = backend_resolve_device(manager, uri, RZ_FRIDA_DEFAULT_TIMEOUT_MS, NULL, &error);
+	if (!device) {
+		rz_frida_json_error(pj, backend_error_code(NULL, error),
+			error ? error->message : "cannot open the Frida device");
+		goto cleanup;
+	}
+
+	options = frida_application_query_options_new();
+	if (!options) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create Frida application query options");
+		goto cleanup;
+	}
+
+	apps = frida_device_enumerate_applications_sync(device, options, NULL, &error);
+	if (!apps) {
+		rz_frida_json_error(pj, backend_error_code(NULL, error),
+			error ? error->message : "cannot enumerate applications");
+		goto cleanup;
+	}
+
+	rz_frida_json_ok_begin(pj);
+	pj_ka(pj, "apps");
+	const gint count = frida_application_list_size(apps);
+	for (gint i = 0; i < count; i++) {
+		FridaApplication *app = frida_application_list_get(apps, i);
+		if (!app) {
+			continue;
+		}
+		pj_o(pj);
+		pj_ks(pj, "identifier", frida_application_get_identifier(app));
+		pj_ks(pj, "name", frida_application_get_name(app));
+		pj_kn(pj, "pid", frida_application_get_pid(app));
+		pj_end(pj);
+		g_object_unref(app);
+	}
+	pj_end(pj);
+	rz_frida_json_ok_end(pj);
+	ok = true;
+
+cleanup:
+	if (error) {
+		g_error_free(error);
+	}
+	if (apps) {
+		frida_unref(apps);
 	}
 	if (options) {
 		frida_unref(options);
@@ -214,15 +318,47 @@ static RzFridaError backend_error_code(GCancellable *cancellable, GError *error)
 	if (error && g_error_matches(error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT)) {
 		return RZ_FRIDA_ERROR_TIMEOUT;
 	}
+	if (error && g_error_matches(error, FRIDA_ERROR, FRIDA_ERROR_TIMED_OUT)) {
+		return RZ_FRIDA_ERROR_TIMEOUT;
+	}
+	if (error && (g_error_matches(error, FRIDA_ERROR, FRIDA_ERROR_PROCESS_NOT_FOUND) ||
+			g_error_matches(error, FRIDA_ERROR, FRIDA_ERROR_EXECUTABLE_NOT_FOUND) ||
+			g_error_matches(error, FRIDA_ERROR, FRIDA_ERROR_EXECUTABLE_NOT_SUPPORTED))) {
+		return RZ_FRIDA_ERROR_INVALID_TARGET;
+	}
 	return RZ_FRIDA_ERROR_INTERNAL;
+}
+
+static bool backend_resolve_pid(FridaDevice *device, const RzFridaUri *uri, GCancellable *cancellable, guint *pid, GError **error) {
+	rz_return_val_if_fail(device && uri && pid, false);
+
+	ut32 numeric = 0;
+	if (rz_frida_uri_target_pid(uri->target, &numeric)) {
+		*pid = numeric;
+		return true;
+	}
+	FridaProcessMatchOptions *options = frida_process_match_options_new();
+	if (!options) {
+		return false;
+	}
+	// 0 match timeout, unknown names fail directly
+	frida_process_match_options_set_timeout(options, 0);
+	FridaProcess *process = frida_device_get_process_by_name_sync(device, uri->target, options, cancellable, error);
+	frida_unref(options);
+	if (!process) {
+		return false;
+	}
+	*pid = frida_process_get_pid(process);
+	g_object_unref(process);
+	return true;
 }
 
 RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
 	const RzFridaUri *uri = rz_frida_session_uri(session);
-	if (!uri || uri->transport_type != RZ_FRIDA_TRANSPORT_LOCAL) {
-		rz_frida_json_error(pj, RZ_FRIDA_ERROR_NOT_IMPLEMENTED, "only the local transport is supported");
+	if (!uri) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "session has no URI");
 		return false;
 	}
 	switch (uri->action_type) {
@@ -264,16 +400,17 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 		goto cleanup;
 	}
 
-	device = frida_device_manager_get_device_by_type_sync(manager, FRIDA_DEVICE_TYPE_LOCAL, (gint)rz_frida_session_timeout(session), cancellable, &error);
+	device = backend_resolve_device(manager, uri, (gint)rz_frida_session_timeout(session), cancellable, &error);
 	if (!device) {
 		rz_frida_json_error(pj, backend_error_code(cancellable, error),
-			error ? error->message : "cannot open the local Frida device");
+			error ? error->message : "cannot open the Frida device");
 		goto cleanup;
 	}
 
 	if (uri->action_type == RZ_FRIDA_ACTION_ATTACH) {
-		if (!rz_frida_uri_target_pid(uri->target, &pid)) {
-			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "attach target must be a numeric pid");
+		if (!backend_resolve_pid(device, uri, cancellable, &pid, &error)) {
+			rz_frida_json_error(pj, backend_error_code(cancellable, error),
+				error ? error->message : "cannot resolve the attach target");
 			goto cleanup;
 		}
 	} else {

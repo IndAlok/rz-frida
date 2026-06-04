@@ -172,17 +172,35 @@ RZ_IPI void rz_frida_backend_deinit(void);
 RZ_IPI bool rz_frida_devices_json(RZ_NONNULL PJ *pj);
 
 /**
- * \brief Enumerate the processes on the local device into a JSON envelope.
+ * \brief Enumerate the processes on a device into a JSON envelope.
  *
- * Writes an ok:true envelope carrying a "processes" array on success, or an
- * ok:false error envelope on failure. When the plugin is built without frida-core,
- * a self-contained implementation reports
+ * Resolves the device selected by \p uri, NULL or the local transport selects
+ * the local device, then writes an ok:true envelope carrying a "processes"
+ * array on success, or an ok:false error envelope on failure. When the plugin
+ * is built without frida-core, a self-contained implementation reports
  * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
  *
+ * \param uri Parsed URI whose transport and device select the device, or NULL for local.
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the process list was emitted, false on any error.
  */
-RZ_IPI bool rz_frida_processes_json(RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_processes_json(RZ_NULLABLE const RzFridaUri *uri, RZ_NONNULL PJ *pj);
+
+/**
+ * \brief Enumerate the applications on a device into a JSON envelope.
+ *
+ * Resolves the device selected by \p uri, NULL or the local transport selects
+ * the local device, then writes an ok:true envelope carrying an "apps" array on
+ * success, or an ok:false error envelope on failure. Application listing is most
+ * useful for Android and iOS targets reached over USB. When the plugin is built
+ * without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param uri Parsed URI whose transport and device select the device, or NULL for local.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the application list was emitted, false on any error.
+ */
+RZ_IPI bool rz_frida_apps_json(RZ_NULLABLE const RzFridaUri *uri, RZ_NONNULL PJ *pj);
 
 /**
  * \brief Open a session for the target described by the session URI.

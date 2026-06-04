@@ -160,14 +160,14 @@ RZ_IPI bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
-
-	if (out->transport_type == RZ_FRIDA_TRANSPORT_LOCAL && RZ_STR_ISNOTEMPTY(out->device)) {
+	if (!target_action(out->action_type) && RZ_STR_ISNOTEMPTY(out->target)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
 
-	if (out->transport_type == RZ_FRIDA_TRANSPORT_USB &&
-		out->action_type != RZ_FRIDA_ACTION_LIST && !RZ_STR_ISNOTEMPTY(out->device)) {
+	// Local must not name a device. Remote must carry host:port. USB could omit
+	// device id, which selects the single connected device.
+	if (out->transport_type == RZ_FRIDA_TRANSPORT_LOCAL && RZ_STR_ISNOTEMPTY(out->device)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}

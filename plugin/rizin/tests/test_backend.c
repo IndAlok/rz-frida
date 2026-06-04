@@ -18,7 +18,18 @@ static bool test_devices_unavailable(void) {
 static bool test_processes_unavailable(void) {
 	PJ *pj = pj_new();
 	mu_assert_notnull(pj, "allocate json builder");
-	mu_assert_false(rz_frida_processes_json(pj), "process enumeration fails without frida-core");
+	mu_assert_false(rz_frida_processes_json(NULL, pj), "process enumeration fails without frida-core");
+	mu_assert_streq(pj_string(pj),
+		"{\"ok\":false,\"error\":{\"code\":\"frida_unavailable\",\"message\":\"frida-core support is not enabled\"}}",
+		"frida-less backend reports the feature as unavailable");
+	pj_free(pj);
+	mu_end;
+}
+
+static bool test_apps_unavailable(void) {
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	mu_assert_false(rz_frida_apps_json(NULL, pj), "application enumeration fails without frida-core");
 	mu_assert_streq(pj_string(pj),
 		"{\"ok\":false,\"error\":{\"code\":\"frida_unavailable\",\"message\":\"frida-core support is not enabled\"}}",
 		"frida-less backend reports the feature as unavailable");
@@ -80,6 +91,7 @@ static bool test_close_unavailable(void) {
 int all_tests(void) {
 	mu_run_test(test_devices_unavailable);
 	mu_run_test(test_processes_unavailable);
+	mu_run_test(test_apps_unavailable);
 	mu_run_test(test_open_unavailable);
 	mu_run_test(test_resume_unavailable);
 	mu_run_test(test_close_unavailable);
