@@ -19,6 +19,9 @@ if not frida_core_opt.disabled()
     endif
     frida_core_compile_args = ['-I' + frida_include_dir]
     frida_core_link_args = [frida_library]
+    # devkit gives static frida core that doesnt carry its own system
+    # libs, so just naming them here for link to resolve. pkg-config path
+    # below declares these itself, so not needed there.
     if host_machine.system() == 'linux'
       frida_core_manual_deps += dependency('threads')
       dl_dep = cc.find_library('dl', required: false)
