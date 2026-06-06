@@ -182,6 +182,9 @@ RZ_IPI bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 	return true;
 }
 
+/**
+ * \brief Parse a decimal only target selector as a process id.
+ */
 RZ_IPI bool rz_frida_uri_target_pid(const char *target, ut32 *pid_out) {
 	rz_return_val_if_fail(target && pid_out, false);
 

@@ -156,6 +156,11 @@ RZ_IPI void *rz_frida_session_backend_state(const RzFridaSession *session) {
 	return session->backend_state;
 }
 
+/**
+ * \brief Register the hook that \ref rz_frida_session_request_cancel invokes.
+ *
+ * Pass NULL to clear it before the hook user data is released.
+ */
 RZ_IPI void rz_frida_session_set_cancel_hook(RzFridaSession *session, void *user, RzFridaCancelHook hook) {
 	rz_return_if_fail(session);
 	session->cancel_user = user;

@@ -9,12 +9,25 @@
 
 #include <frida-core.h>
 
+static int frida_runtime_refs = 0;
+
+/**
+ * \brief Start the Frida runtime used by the plugin backend.
+ */
 RZ_IPI void rz_frida_backend_init(void) {
-	frida_init();
+	if (frida_runtime_refs++ == 0) {
+		frida_init();
+	}
 }
 
+/**
+ * \brief Stop the Frida runtime used by the plugin backend.
+ */
 RZ_IPI void rz_frida_backend_deinit(void) {
-	frida_deinit();
+	rz_return_if_fail(frida_runtime_refs > 0);
+	if (--frida_runtime_refs == 0) {
+		frida_deinit();
+	}
 }
 
 static const char *device_type_string(FridaDeviceType type) {
@@ -59,6 +72,17 @@ static FridaDevice *backend_resolve_device(FridaDeviceManager *manager, const Rz
 	}
 }
 
+/**
+ * \brief Enumerate the available Frida devices into a JSON envelope.
+ *
+ * Writes an ok:true envelope carrying a "devices" array on success, or an
+ * ok:false error envelope on failure. When the plugin is built without
+ * frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the device list was emitted, false on any error.
+ */
 RZ_IPI bool rz_frida_devices_json(PJ *pj) {
 	rz_return_val_if_fail(pj, false);
 
@@ -114,6 +138,19 @@ cleanup:
 	return ok;
 }
 
+/**
+ * \brief Enumerate the processes on a device into a JSON envelope.
+ *
+ * Resolves the device selected by \p uri, NULL or the local transport selects
+ * the local device, then writes an ok:true envelope carrying a "processes"
+ * array on success, or an ok:false error envelope on failure. When the plugin
+ * is built without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param uri Parsed URI whose transport and device select the device, or NULL for local.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the process list was emitted, false on any error.
+ */
 RZ_IPI bool rz_frida_processes_json(const RzFridaUri *uri, PJ *pj) {
 	rz_return_val_if_fail(pj, false);
 
@@ -188,6 +225,20 @@ cleanup:
 	return ok;
 }
 
+/**
+ * \brief Enumerate the applications on a device into a JSON envelope.
+ *
+ * Resolves the device selected by \p uri, NULL or the local transport selects
+ * the local device, then writes an ok:true envelope carrying an "apps" array on
+ * success, or an ok:false error envelope on failure. Application listing is most
+ * useful for Android and iOS targets reached over USB. When the plugin is built
+ * without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param uri Parsed URI whose transport and device select the device, or NULL for local.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the application list was emitted, false on any error.
+ */
 RZ_IPI bool rz_frida_apps_json(const RzFridaUri *uri, PJ *pj) {
 	rz_return_val_if_fail(pj, false);
 
@@ -353,6 +404,20 @@ static bool backend_resolve_pid(FridaDevice *device, const RzFridaUri *uri, GCan
 	return true;
 }
 
+/**
+ * \brief Open a session for the target described by the session URI.
+ *
+ * Resolves the local device, then attaches to a pid, or spawns or launches the
+ * target before attaching. On success the live Frida handles are stored on the
+ * session and an ok:true envelope carrying the action, pid, and state is
+ * written, and on failure an ok:false envelope is written. When the plugin is built
+ * without frida-core, a self contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session that owns the resolved URI and receives the backend handles.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the session was opened, false on any error.
+ */
 RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
@@ -505,6 +570,16 @@ cleanup:
 	return ok;
 }
 
+/**
+ * \brief Resume a target that was spawned suspended by \ref rz_frida_backend_open.
+ *
+ * Writes an ok:true envelope on success, or an ok:false envelope when the
+ * session has nothing to resume or the backend is unavailable.
+ *
+ * \param session Session holding the backend handles to resume.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the target was resumed, false on any error.
+ */
 RZ_IPI bool rz_frida_backend_resume(RzFridaSession *session, PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
@@ -543,6 +618,19 @@ RZ_IPI bool rz_frida_backend_resume(RzFridaSession *session, PJ *pj) {
 	return true;
 }
 
+/**
+ * \brief Detach the open session and report it as closed.
+ *
+ * Detaches from the target and writes an ok:true envelope carrying the pid and
+ * final state. The caller frees the session afterwards, which kills a target
+ * that was spawned but never resumed and releases the remaining handles. When
+ * the plugin is built without frida-core, a self-contained implementation
+ * reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the backend handles to detach.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the session was closed, false on any error.
+ */
 RZ_IPI bool rz_frida_backend_close(RzFridaSession *session, PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
