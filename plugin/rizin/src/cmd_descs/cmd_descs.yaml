@@ -6,7 +6,10 @@ commands:
   - name: frida
     cname: cmd_frida
     summary: "Interact with Frida targets"
-    description: "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, device, process, and application enumeration, and session lifecycle across local, USB, and remote targets."
+    description: >
+      Commands for the rz-frida integration covering plugin and session status,
+      frida:// URI validation, device, process, and application enumeration,
+      and session lifecycle across local, USB, and remote targets.
     details:
       - name: "Session status"
         entries:
@@ -59,7 +62,10 @@ commands:
       - name: fridas
         cname: cmd_fridas
         summary: "Print Frida session status"
-        description: "Reports whether a session is active and prints the current session state (new, resolved, connecting, attached, detaching, closed, or error)."
+        description: >
+          Reports whether a session is active and prints the current session
+          state (new, resolved, connecting, attached, detaching, closed, or
+          error).
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_STANDARD
@@ -75,7 +81,10 @@ commands:
       - name: fridau
         cname: cmd_fridau
         summary: "Validate a frida:// URI"
-        description: "Parses and validates a frida:// URI without contacting any Frida device. Useful for verifying URI syntax in scripts or CI before attempting to attach."
+        description: >
+          Parses and validates a frida:// URI without contacting any Frida
+          device. Useful for verifying URI syntax in scripts or CI before
+          attempting to attach.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_STANDARD
@@ -118,7 +127,9 @@ commands:
       - name: fridad
         cname: cmd_fridad
         summary: "List Frida devices"
-        description: "Enumerates devices known to the Frida device manager (local, USB, and remote) and emits a structured JSON reply."
+        description: >
+          Enumerates devices known to the Frida device manager (local, USB, and
+          remote) and emits a structured JSON reply.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_JSON
@@ -131,7 +142,10 @@ commands:
       - name: fridap
         cname: cmd_fridap
         summary: "List processes on a device"
-        description: "Enumerates the processes visible to a Frida device and emits a structured JSON reply. With no argument it lists the local device, or pass a frida:// URI to select a USB or remote device."
+        description: >
+          Enumerates the processes visible to a Frida device and emits a
+          structured JSON reply. With no argument it lists the local device, or
+          pass a frida:// URI to select a USB or remote device.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_JSON
@@ -153,7 +167,11 @@ commands:
       - name: fridaa
         cname: cmd_fridaa
         summary: "List applications on a device"
-        description: "Enumerates the applications known to a Frida device and emits a structured JSON reply. With no argument it lists the local device, or pass a frida:// URI to select a USB or remote device. Application listing is most useful for Android and iOS targets reached over USB."
+        description: >
+          Enumerates the applications known to a Frida device and emits a
+          structured JSON reply. With no argument it lists the local device, or
+          pass a frida:// URI to select a USB or remote device. Application
+          listing is most useful for Android and iOS targets reached over USB.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_JSON
@@ -172,7 +190,11 @@ commands:
       - name: fridao
         cname: cmd_fridao
         summary: "Open a Frida session"
-        description: "Opens a session for a frida:// URI on a local, USB, or remote device: attach to a pid or process name, spawn a target suspended, or launch and resume it. Stores the live session and emits a structured JSON reply."
+        description: >
+          Opens a session for a frida:// URI on a local, USB, or remote device:
+          attach to a pid or process name, spawn a target suspended, or launch
+          and resume it. Stores the live session and emits a structured JSON
+          reply.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_JSON
@@ -200,7 +222,9 @@ commands:
       - name: fridar
         cname: cmd_fridar
         summary: "Resume the open Frida session"
-        description: "Resumes a target that was spawned suspended by the open command. Emits a structured JSON reply."
+        description: >
+          Resumes a target that was spawned suspended by the open command. Emits
+          a structured JSON reply.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_JSON
@@ -213,7 +237,10 @@ commands:
       - name: fridac
         cname: cmd_fridac
         summary: "Close the open Frida session"
-        description: "Detaches the open session and forgets it. A target that was spawned but never resumed is killed. An attached or launched target keeps running. Emits a structured JSON reply."
+        description: >
+          Detaches the open session and forgets it. A target that was spawned
+          but never resumed is killed. An attached or launched target keeps
+          running. Emits a structured JSON reply.
         type: RZ_CMD_DESC_TYPE_ARGV_STATE
         modes:
           - RZ_OUTPUT_MODE_JSON
