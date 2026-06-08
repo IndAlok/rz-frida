@@ -131,7 +131,8 @@ RZ_IPI bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 		return false;
 	}
 
-	const char *cursor = uri + strlen(prefix);
+	// sizeof(prefix) just keeps skip length tied to literal and -1 for trailing nul.
+	const char *cursor = uri + sizeof(prefix) - 1;
 	if (!assign_part(&out->action, &cursor, false) ||
 		!assign_part(&out->transport, &cursor, false) ||
 		!assign_part(&out->device, &cursor, false) ||
@@ -159,14 +160,14 @@ RZ_IPI bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
-
-	if (out->transport_type == RZ_FRIDA_TRANSPORT_LOCAL && RZ_STR_ISNOTEMPTY(out->device)) {
+	if (!target_action(out->action_type) && RZ_STR_ISNOTEMPTY(out->target)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
 
-	if (out->transport_type == RZ_FRIDA_TRANSPORT_USB &&
-		out->action_type != RZ_FRIDA_ACTION_LIST && !RZ_STR_ISNOTEMPTY(out->device)) {
+	// Local must not name a device. Remote must carry host:port. USB could omit
+	// device id, which selects the single connected device.
+	if (out->transport_type == RZ_FRIDA_TRANSPORT_LOCAL && RZ_STR_ISNOTEMPTY(out->device)) {
 		rz_frida_uri_fini(out);
 		return false;
 	}
@@ -178,5 +179,29 @@ RZ_IPI bool rz_frida_uri_parse(const char *uri, RzFridaUri *out) {
 		}
 	}
 
+	return true;
+}
+
+/**
+ * \brief Parse a decimal only target selector as a process id.
+ */
+RZ_IPI bool rz_frida_uri_target_pid(const char *target, ut32 *pid_out) {
+	rz_return_val_if_fail(target && pid_out, false);
+
+	if (RZ_STR_ISEMPTY(target)) {
+		return false;
+	}
+	// decimal as pid only.
+	ut64 value = 0;
+	for (const char *p = target; *p; p++) {
+		if (!IS_DIGIT(*p)) {
+			return false;
+		}
+		value = value * 10 + (ut64)(*p - '0');
+		if (value > UT32_MAX) {
+			return false;
+		}
+	}
+	*pid_out = (ut32)value;
 	return true;
 }

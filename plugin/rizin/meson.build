@@ -7,6 +7,7 @@ frida_core_enabled = false
 frida_core_manual = false
 frida_core_compile_args = []
 frida_core_link_args = []
+frida_core_manual_deps = []
 
 if not frida_core_opt.disabled()
   frida_include_dir = get_option('frida_include_dir')
@@ -18,9 +19,24 @@ if not frida_core_opt.disabled()
     endif
     frida_core_compile_args = ['-I' + frida_include_dir]
     frida_core_link_args = [frida_library]
+    # devkit gives static frida core that doesnt carry its own system
+    # libs, so just naming them here for link to resolve. pkg-config path
+    # below declares these itself, so not needed there.
+    if host_machine.system() == 'linux'
+      frida_core_manual_deps += dependency('threads')
+      dl_dep = cc.find_library('dl', required: false)
+      if dl_dep.found()
+        frida_core_manual_deps += dl_dep
+      endif
+      m_dep = cc.find_library('m', required: false)
+      if m_dep.found()
+        frida_core_manual_deps += m_dep
+      endif
+    endif
     frida_core_dep = declare_dependency(
       compile_args: frida_core_compile_args,
       link_args: frida_core_link_args,
+      dependencies: frida_core_manual_deps,
     )
   else
     frida_core_dep = dependency('frida-core-1.0', required: false)
@@ -39,6 +55,7 @@ if not frida_core_opt.disabled()
       frida_core_enabled = cc.links(
         frida_core_link_check,
         args: frida_core_compile_args + frida_core_link_args,
+        dependencies: frida_core_manual_deps,
         name: 'frida-core link check',
       )
     else
@@ -139,7 +156,7 @@ test_protocol = executable('test_protocol',
 test('protocol helpers', test_protocol)
 
 test_backend = executable('test_backend',
-  ['tests/test_backend.c', 'src/rz_frida_backend_null.c', 'src/rz_frida_protocol.c'],
+  ['tests/test_backend.c', 'src/rz_frida_backend_null.c', 'src/rz_frida_protocol.c', 'src/rz_frida_session.c', 'src/rz_frida_uri.c'],
   c_args: rz_frida_include_args,
   dependencies: rz_core_dep,
   include_directories: rz_frida_test_incs,

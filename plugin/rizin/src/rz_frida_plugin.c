@@ -28,16 +28,27 @@ static RzCmdStatus print_status(RzCore *core, RzCmdStateOutput *state) {
 	const RzFridaSession *session = ctx ? ctx->session : NULL;
 	const bool active = session != NULL;
 	const char *state_string = session ? rz_frida_session_state_string(rz_frida_session_state(session)) : "closed";
+	const RzFridaUri *uri = session ? rz_frida_session_uri(session) : NULL;
 
 	switch (state->mode) {
 	case RZ_OUTPUT_MODE_STANDARD:
 		rz_cons_printf("active: %s\n", rz_str_bool(active));
 		rz_cons_printf("state: %s\n", state_string);
+		if (session) {
+			rz_cons_printf("pid: %u\n", rz_frida_session_target_pid(session));
+			rz_cons_printf("action: %s\n", uri->action);
+			rz_cons_printf("target: %s\n", uri->target);
+		}
 		return RZ_CMD_STATUS_OK;
 	case RZ_OUTPUT_MODE_JSON:
 		rz_frida_json_ok_begin(state->d.pj);
 		pj_kb(state->d.pj, "active", active);
 		pj_ks(state->d.pj, "state", state_string);
+		if (session) {
+			pj_kn(state->d.pj, "pid", rz_frida_session_target_pid(session));
+			pj_ks(state->d.pj, "action", uri->action);
+			pj_ks(state->d.pj, "target", uri->target);
+		}
 		rz_frida_json_ok_end(state->d.pj);
 		return RZ_CMD_STATUS_OK;
 	default:
@@ -119,6 +130,132 @@ RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
+static RzCmdStatus run_device_listing(int argc, const char **argv, RzCmdStateOutput *state,
+	RzFridaAction action, bool (*list)(const RzFridaUri *uri, PJ *pj)) {
+	rz_return_val_if_fail(argv && state && list, RZ_CMD_STATUS_ERROR);
+
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	const char *uri_string = (argc > 1) ? argv[1] : NULL;
+	if (!RZ_STR_ISNOTEMPTY(uri_string)) {
+		list(NULL, pj);
+		return RZ_CMD_STATUS_OK;
+	}
+
+	RzFridaUri uri = { 0 };
+	if (!rz_frida_uri_parse(uri_string, &uri)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_URI, "invalid Frida URI");
+		return RZ_CMD_STATUS_OK;
+	}
+	if (uri.action_type != action) {
+		rz_frida_uri_fini(&uri);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_URI, "URI action does not match the command");
+		return RZ_CMD_STATUS_OK;
+	}
+	list(&uri, pj);
+	rz_frida_uri_fini(&uri);
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_LIST, rz_frida_processes_json);
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaa_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_APPS, rz_frida_apps_json);
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "frida plugin context is unavailable");
+		return RZ_CMD_STATUS_OK;
+	}
+	if (ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "a session is already open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	RzFridaUri uri = { 0 };
+	if (!rz_frida_uri_parse(argv[1], &uri)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_URI, "invalid Frida URI");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	RzFridaSession *session = rz_frida_session_new();
+	if (!session) {
+		rz_frida_uri_fini(&uri);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate session");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	bool stored = rz_frida_session_set_uri(session, &uri);
+	rz_frida_uri_fini(&uri);
+	if (!stored) {
+		rz_frida_session_free(session);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot store the session URI");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// backend_open writes the envelope either way. only keep the session if it opened.
+	if (!rz_frida_backend_open(session, pj)) {
+		rz_frida_session_free(session);
+		return RZ_CMD_STATUS_OK;
+	}
+
+	ctx->session = session;
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_frida_backend_resume(ctx->session, pj);
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// close writes reply, free releases backend state and clears slot
+	if (rz_frida_backend_close(ctx->session, pj)) {
+		rz_frida_session_free(ctx->session);
+		ctx->session = NULL;
+	}
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }
@@ -151,16 +288,23 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 		return false;
 	}
 
+	// The cmd tree is there in src/cmd_descs/cmd_descs.yaml and emitted by
+	// Rizin's cmd_descs_generate.py into cmd_descs.c. rzshell_cmddescs_init registers
+	// the frida group and its subcmds under the cmd root, and we keep the group
+	// descriptor so fini can detach the whole subtree.
+	rz_frida_backend_init();
+
 	*user = ctx;
 	return true;
 }
 
 static bool rz_frida_plugin_fini(RzCore *core, void *user) {
 	RzFridaCoreContext *ctx = user;
-	rz_return_val_if_fail(ctx, false);
+	rz_return_val_if_fail(core && ctx, false);
 	bool ok = rz_core_plugin_cmd_desc_remove(core, ctx->cmd_desc);
 	ctx->cmd_desc = NULL;
 	frida_context_free(ctx);
+	rz_frida_backend_deinit();
 	return ok;
 }
 

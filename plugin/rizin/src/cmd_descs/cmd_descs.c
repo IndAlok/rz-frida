@@ -10,8 +10,16 @@
 static const RzCmdDescDetail cmd_fridas_details[2];
 static const RzCmdDescDetail cmd_fridau_details[3];
 static const RzCmdDescDetail cmd_fridad_details[2];
-static const RzCmdDescDetail cmd_frida_details[4];
+static const RzCmdDescDetail cmd_fridap_details[2];
+static const RzCmdDescDetail cmd_fridaa_details[2];
+static const RzCmdDescDetail cmd_fridao_details[2];
+static const RzCmdDescDetail cmd_fridar_details[2];
+static const RzCmdDescDetail cmd_fridac_details[2];
+static const RzCmdDescDetail cmd_frida_details[7];
 static const RzCmdDescArg cmd_fridau_args[2];
+static const RzCmdDescArg cmd_fridap_args[2];
+static const RzCmdDescArg cmd_fridaa_args[2];
+static const RzCmdDescArg cmd_fridao_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -31,15 +39,37 @@ static const RzCmdDescDetailEntry cmd_frida_Device_space_enumeration_detail_entr
 	{ .text = "fridadj", .arg_str = NULL, .comment = "Enumerate connected Frida devices as JSON" },
 	{ 0 },
 };
+
+static const RzCmdDescDetailEntry cmd_frida_Process_space_listing_detail_entries[] = {
+	{ .text = "fridapj", .arg_str = NULL, .comment = "Enumerate local processes as JSON" },
+	{ .text = "fridapj ", .arg_str = "frida://list/usb/device-1/", .comment = "Enumerate processes on a USB device as JSON" },
+	{ 0 },
+};
+
+static const RzCmdDescDetailEntry cmd_frida_Application_space_listing_detail_entries[] = {
+	{ .text = "fridaaj", .arg_str = NULL, .comment = "Enumerate local applications as JSON" },
+	{ .text = "fridaaj ", .arg_str = "frida://apps/usb/device-1/", .comment = "Enumerate applications on a USB device as JSON" },
+	{ 0 },
+};
+
+static const RzCmdDescDetailEntry cmd_frida_Session_space_control_detail_entries[] = {
+	{ .text = "fridaoj ", .arg_str = "frida://spawn/local///bin/ls", .comment = "Spawn /bin/ls suspended and open a session" },
+	{ .text = "fridarj", .arg_str = NULL, .comment = "Resume the spawned target" },
+	{ .text = "fridacj", .arg_str = NULL, .comment = "Close the open session" },
+	{ 0 },
+};
 static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session status", .entries = cmd_frida_Session_space_status_detail_entries },
 	{ .name = "URI grammar", .entries = cmd_frida_URI_space_grammar_detail_entries },
 	{ .name = "Device enumeration", .entries = cmd_frida_Device_space_enumeration_detail_entries },
+	{ .name = "Process listing", .entries = cmd_frida_Process_space_listing_detail_entries },
+	{ .name = "Application listing", .entries = cmd_frida_Application_space_listing_detail_entries },
+	{ .name = "Session control", .entries = cmd_frida_Session_space_control_detail_entries },
 	{ 0 },
 };
 static const RzCmdDescHelp cmd_frida_help = {
 	.summary = "Interact with Frida targets",
-	.description = "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, and Frida device enumeration.",
+	.description = "Commands for the rz-frida integration covering plugin and session status, frida:// URI validation, device, process, and application enumeration, and session lifecycle across local, USB, and remote targets.",
 	.details = cmd_frida_details,
 };
 static const RzCmdDescDetailEntry cmd_fridas_Examples_detail_entries[] = {
@@ -116,6 +146,123 @@ static const RzCmdDescHelp cmd_fridad_help = {
 	.args = cmd_fridad_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridap_Examples_detail_entries[] = {
+	{ .text = "fridapj", .arg_str = NULL, .comment = "List local processes as JSON, returns a frida_unavailable error if built without frida-core" },
+	{ .text = "fridapj ", .arg_str = "frida://list/usb/device-1/", .comment = "List processes on a USB device by id" },
+	{ .text = "fridapj ", .arg_str = "frida://list/remote/127.0.0.1:27042/", .comment = "List processes on a remote frida-server" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridap_details[] = {
+	{ .name = "Examples", .entries = cmd_fridap_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridap_args[] = {
+	{
+		.name = "uri",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridap_help = {
+	.summary = "List processes on a device",
+	.description = "Enumerates the processes visible to a Frida device and emits a structured JSON reply. With no argument it lists the local device, or pass a frida:// URI to select a USB or remote device.",
+	.details = cmd_fridap_details,
+	.args = cmd_fridap_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaa_Examples_detail_entries[] = {
+	{ .text = "fridaaj", .arg_str = NULL, .comment = "List local applications as JSON, returns a frida_unavailable error if built without frida-core" },
+	{ .text = "fridaaj ", .arg_str = "frida://apps/usb/device-1/", .comment = "List applications on a USB device by id" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaa_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaa_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaa_args[] = {
+	{
+		.name = "uri",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaa_help = {
+	.summary = "List applications on a device",
+	.description = "Enumerates the applications known to a Frida device and emits a structured JSON reply. With no argument it lists the local device, or pass a frida:// URI to select a USB or remote device. Application listing is most useful for Android and iOS targets reached over USB.",
+	.details = cmd_fridaa_details,
+	.args = cmd_fridaa_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridao_Examples_detail_entries[] = {
+	{ .text = "fridaoj ", .arg_str = "frida://attach/local//1234", .comment = "Attach to local PID 1234" },
+	{ .text = "fridaoj ", .arg_str = "frida://attach/usb//com.example.app", .comment = "Attach by process name on the single USB device" },
+	{ .text = "fridaoj ", .arg_str = "frida://spawn/usb//com.example.app", .comment = "Spawn an Android package suspended over USB, resume with fridarj" },
+	{ .text = "fridaoj ", .arg_str = "frida://launch/local///bin/ls", .comment = "Launch /bin/ls and resume it immediately" },
+	{ .text = "fridaoj ", .arg_str = "frida://attach/remote/127.0.0.1:27042/1234", .comment = "Attach to PID 1234 over a remote frida-server" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridao_details[] = {
+	{ .name = "Examples", .entries = cmd_fridao_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridao_args[] = {
+	{
+		.name = "uri",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridao_help = {
+	.summary = "Open a Frida session",
+	.description = "Opens a session for a frida:// URI on a local, USB, or remote device: attach to a pid or process name, spawn a target suspended, or launch and resume it. Stores the live session and emits a structured JSON reply.",
+	.details = cmd_fridao_details,
+	.args = cmd_fridao_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridar_Examples_detail_entries[] = {
+	{ .text = "fridarj", .arg_str = NULL, .comment = "Resume the spawned target, and returns an error if no session is open" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridar_details[] = {
+	{ .name = "Examples", .entries = cmd_fridar_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridar_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridar_help = {
+	.summary = "Resume the open Frida session",
+	.description = "Resumes a target that was spawned suspended by the open command. Emits a structured JSON reply.",
+	.details = cmd_fridar_details,
+	.args = cmd_fridar_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridac_Examples_detail_entries[] = {
+	{ .text = "fridacj", .arg_str = NULL, .comment = "Close the open session and return an error if none is open" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridac_details[] = {
+	{ .name = "Examples", .entries = cmd_fridac_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridac_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridac_help = {
+	.summary = "Close the open Frida session",
+	.description = "Detaches the open session and forgets it. A target that was spawned but never resumed is killed. An attached or launched target keeps running. Emits a structured JSON reply.",
+	.details = cmd_fridac_details,
+	.args = cmd_fridac_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -130,5 +277,20 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridad_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridad", RZ_OUTPUT_MODE_JSON, rz_cmd_fridad_handler, &cmd_fridad_help);
 	rz_warn_if_fail(cmd_fridad_cd);
+
+	RzCmdDesc *cmd_fridap_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridap", RZ_OUTPUT_MODE_JSON, rz_cmd_fridap_handler, &cmd_fridap_help);
+	rz_warn_if_fail(cmd_fridap_cd);
+
+	RzCmdDesc *cmd_fridaa_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaa", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaa_handler, &cmd_fridaa_help);
+	rz_warn_if_fail(cmd_fridaa_cd);
+
+	RzCmdDesc *cmd_fridao_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridao", RZ_OUTPUT_MODE_JSON, rz_cmd_fridao_handler, &cmd_fridao_help);
+	rz_warn_if_fail(cmd_fridao_cd);
+
+	RzCmdDesc *cmd_fridar_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridar", RZ_OUTPUT_MODE_JSON, rz_cmd_fridar_handler, &cmd_fridar_help);
+	rz_warn_if_fail(cmd_fridar_cd);
+
+	RzCmdDesc *cmd_fridac_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridac", RZ_OUTPUT_MODE_JSON, rz_cmd_fridac_handler, &cmd_fridac_help);
+	rz_warn_if_fail(cmd_fridac_cd);
 	rz_cmd_batch_end(core->rcmd);
 }
