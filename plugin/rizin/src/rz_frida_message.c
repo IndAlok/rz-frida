@@ -74,11 +74,11 @@ RZ_IPI void rz_frida_agent_message_fini(RzFridaAgentMessage *message) {
 	if (!message) {
 		return;
 	}
-	RZ_FREE(message->payload);
-	RZ_FREE(message->description);
-	RZ_FREE(message->stack);
-	RZ_FREE(message->level);
-	RZ_FREE(message->text);
+	free(message->payload);
+	free(message->description);
+	free(message->stack);
+	free(message->level);
+	free(message->text);
 	rz_mem_memzero(message, sizeof(*message));
 }
 
@@ -135,8 +135,8 @@ RZ_IPI void rz_frida_response_fini(RzFridaResponse *response) {
 	if (!response) {
 		return;
 	}
-	RZ_FREE(response->result);
-	RZ_FREE(response->error);
+	free(response->result);
+	free(response->error);
 	rz_mem_memzero(response, sizeof(*response));
 }
 
