@@ -15,11 +15,16 @@ static const RzCmdDescDetail cmd_fridaa_details[2];
 static const RzCmdDescDetail cmd_fridao_details[2];
 static const RzCmdDescDetail cmd_fridar_details[2];
 static const RzCmdDescDetail cmd_fridac_details[2];
-static const RzCmdDescDetail cmd_frida_details[7];
+static const RzCmdDescDetail cmd_fridae_details[2];
+static const RzCmdDescDetail cmd_fridal_details[2];
+static const RzCmdDescDetail cmd_fridai_details[2];
+static const RzCmdDescDetail cmd_frida_details[8];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
 static const RzCmdDescArg cmd_fridaa_args[2];
 static const RzCmdDescArg cmd_fridao_args[2];
+static const RzCmdDescArg cmd_fridae_args[2];
+static const RzCmdDescArg cmd_fridal_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -58,6 +63,13 @@ static const RzCmdDescDetailEntry cmd_frida_Session_space_control_detail_entries
 	{ .text = "fridacj", .arg_str = NULL, .comment = "Close the open session" },
 	{ 0 },
 };
+
+static const RzCmdDescDetailEntry cmd_frida_Script_space_execution_detail_entries[] = {
+	{ .text = "fridaij", .arg_str = NULL, .comment = "Ping the agent and read its version and target info" },
+	{ .text = "fridaej ", .arg_str = "Process.arch", .comment = "Evaluate a JavaScript expression in the target" },
+	{ .text = "fridalj ", .arg_str = "hook.js", .comment = "Load and evaluate a JavaScript file in the target" },
+	{ 0 },
+};
 static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session status", .entries = cmd_frida_Session_space_status_detail_entries },
 	{ .name = "URI grammar", .entries = cmd_frida_URI_space_grammar_detail_entries },
@@ -65,6 +77,7 @@ static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Process listing", .entries = cmd_frida_Process_space_listing_detail_entries },
 	{ .name = "Application listing", .entries = cmd_frida_Application_space_listing_detail_entries },
 	{ .name = "Session control", .entries = cmd_frida_Session_space_control_detail_entries },
+	{ .name = "Script execution", .entries = cmd_frida_Script_space_execution_detail_entries },
 	{ 0 },
 };
 static const RzCmdDescHelp cmd_frida_help = {
@@ -263,6 +276,72 @@ static const RzCmdDescHelp cmd_fridac_help = {
 	.args = cmd_fridac_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridae_Examples_detail_entries[] = {
+	{ .text = "fridaej ", .arg_str = "Process.arch", .comment = "Read the target architecture from the agent" },
+	{ .text = "fridaej ", .arg_str = "\"1 + 1\"", .comment = "Evaluate an expression, quote it when it has spaces" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridae_details[] = {
+	{ .name = "Examples", .entries = cmd_fridae_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridae_args[] = {
+	{
+		.name = "source",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridae_help = {
+	.summary = "Evaluate JavaScript in the target",
+	.description = "Loads the rz-frida agent into the open session on first use, then evaluates a JavaScript expression inside the target and returns its value and type. Quote the expression when it contains spaces, or use fridal for a script that lives in a file.",
+	.details = cmd_fridae_details,
+	.args = cmd_fridae_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridal_Examples_detail_entries[] = {
+	{ .text = "fridalj ", .arg_str = "hook.js", .comment = "Evaluate the script in hook.js inside the target" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridal_details[] = {
+	{ .name = "Examples", .entries = cmd_fridal_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridal_args[] = {
+	{
+		.name = "file",
+		.type = RZ_CMD_ARG_TYPE_FILE,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridal_help = {
+	.summary = "Load and evaluate a JavaScript file in the target",
+	.description = "Reads a JavaScript file from disk and evaluates it inside the target through the rz-frida agent. Useful for instrumentation scripts that are too large to pass on the command line.",
+	.details = cmd_fridal_details,
+	.args = cmd_fridal_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridai_Examples_detail_entries[] = {
+	{ .text = "fridaij", .arg_str = NULL, .comment = "Ping the agent and read its version and target info" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridai_details[] = {
+	{ .name = "Examples", .entries = cmd_fridai_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridai_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridai_help = {
+	.summary = "Ping the agent in the target",
+	.description = "Loads the rz-frida agent into the open session on first use and pings it, returning the agent version and the target platform, architecture, and pointer size. A quick way to check the host-agent message channel is alive.",
+	.details = cmd_fridai_details,
+	.args = cmd_fridai_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -292,5 +371,14 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridac_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridac", RZ_OUTPUT_MODE_JSON, rz_cmd_fridac_handler, &cmd_fridac_help);
 	rz_warn_if_fail(cmd_fridac_cd);
+
+	RzCmdDesc *cmd_fridae_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridae", RZ_OUTPUT_MODE_JSON, rz_cmd_fridae_handler, &cmd_fridae_help);
+	rz_warn_if_fail(cmd_fridae_cd);
+
+	RzCmdDesc *cmd_fridal_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridal", RZ_OUTPUT_MODE_JSON, rz_cmd_fridal_handler, &cmd_fridal_help);
+	rz_warn_if_fail(cmd_fridal_cd);
+
+	RzCmdDesc *cmd_fridai_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridai", RZ_OUTPUT_MODE_JSON, rz_cmd_fridai_handler, &cmd_fridai_help);
+	rz_warn_if_fail(cmd_fridai_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

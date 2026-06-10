@@ -9,6 +9,10 @@
 
 #include <frida-core.h>
 
+#include "rzfrida_agent.h"
+
+#define RZ_FRIDA_DRAIN_TICK_MS 50
+
 static int frida_runtime_refs = 0;
 
 /**
@@ -322,7 +326,15 @@ typedef struct rz_frida_backend_session_t {
 	guint pid;
 	bool spawned;
 	bool resumed;
+	FridaScript *script; ///< Loaded agent script, or NULL until first use.
+	gulong message_handler; ///< Handler id for the script message signal, or 0.
+	RzFridaPending *pending; ///< Ids of requests still awaiting a reply.
+	ut64 await_id; ///< Request id the active drain waits for, 0 when idle.
+	bool reply_ready; ///< Set when the awaited reply has been captured.
+	RzFridaResponse reply; ///< Captured reply, owned while reply_ready is set.
 } RzFridaBackendSession;
+
+static void backend_script_teardown(RzFridaBackendSession *backend);
 
 static void backend_session_dispose(RzFridaSession *session) {
 	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
@@ -330,6 +342,9 @@ static void backend_session_dispose(RzFridaSession *session) {
 		return;
 	}
 	rz_frida_session_set_cancel_hook(session, NULL, NULL);
+	// unload the agent while the session is still attached, then free the registry.
+	backend_script_teardown(backend);
+	rz_frida_pending_free(backend->pending);
 	if (backend->session) {
 		if (!frida_session_is_detached(backend->session)) {
 			frida_session_detach_sync(backend->session, NULL, NULL);
@@ -662,4 +677,336 @@ RZ_IPI bool rz_frida_backend_close(RzFridaSession *session, PJ *pj) {
 	pj_ks(pj, "state", rz_frida_session_state_string(rz_frida_session_state(session)));
 	rz_frida_json_ok_end(pj);
 	return true;
+}
+
+static void backend_script_teardown(RzFridaBackendSession *backend) {
+	if (!backend) {
+		return;
+	}
+	if (backend->script && backend->message_handler) {
+		g_signal_handler_disconnect(backend->script, backend->message_handler);
+	}
+	backend->message_handler = 0;
+	if (backend->script) {
+		if (!frida_script_is_destroyed(backend->script)) {
+			frida_script_unload_sync(backend->script, NULL, NULL);
+		}
+		frida_unref(backend->script);
+		backend->script = NULL;
+	}
+	backend->await_id = 0;
+	backend->reply_ready = false;
+	rz_frida_response_fini(&backend->reply);
+}
+
+// match an agent msg to the in-flight req, single threaded inside the drain.
+static void backend_on_message(FridaScript *script, const gchar *message, GBytes *data, gpointer user) {
+	(void)script;
+	(void)data;
+	RzFridaBackendSession *backend = user;
+	if (!backend || !message) {
+		return;
+	}
+	RzFridaAgentMessage parsed = { 0 };
+	if (!rz_frida_agent_message_parse(message, &parsed)) {
+		return;
+	}
+	if (parsed.kind == RZ_FRIDA_AGENT_MESSAGE_SEND && parsed.payload) {
+		RzFridaResponse response = { 0 };
+		if (rz_frida_response_parse(parsed.payload, &response)) {
+			if (response.id == backend->await_id && rz_frida_pending_take(backend->pending, response.id)) {
+				rz_frida_response_fini(&backend->reply);
+				backend->reply = response;
+				backend->reply_ready = true;
+				rz_mem_memzero(&response, sizeof(response));
+			}
+			rz_frida_response_fini(&response);
+		}
+	}
+	rz_frida_agent_message_fini(&parsed);
+}
+
+typedef enum {
+	BACKEND_DRAIN_REPLY = 0,
+	BACKEND_DRAIN_TIMEOUT,
+	BACKEND_DRAIN_CANCELLED,
+	BACKEND_DRAIN_GONE,
+} BackendDrainResult;
+
+static gboolean backend_drain_tick(gpointer user) {
+	(void)user;
+	return G_SOURCE_CONTINUE;
+}
+
+// pump the main context until reply lands, deadline passes, or caller cancels.
+static BackendDrainResult backend_drain_reply(RzFridaBackendSession *backend, RzFridaSession *session, ut64 timeout_ms) {
+	const gint64 deadline = g_get_monotonic_time() + (gint64)timeout_ms * 1000;
+	guint tick = g_timeout_add(RZ_FRIDA_DRAIN_TICK_MS, backend_drain_tick, NULL);
+	BackendDrainResult result = BACKEND_DRAIN_TIMEOUT;
+	while (true) {
+		if (backend->reply_ready) {
+			result = BACKEND_DRAIN_REPLY;
+			break;
+		}
+		if (rz_frida_session_is_cancelled(session) ||
+			(backend->cancellable && g_cancellable_is_cancelled(backend->cancellable))) {
+			result = BACKEND_DRAIN_CANCELLED;
+			break;
+		}
+		if (!backend->script || frida_script_is_destroyed(backend->script)) {
+			result = BACKEND_DRAIN_GONE;
+			break;
+		}
+		if (g_get_monotonic_time() >= deadline) {
+			result = BACKEND_DRAIN_TIMEOUT;
+			break;
+		}
+		g_main_context_iteration(NULL, TRUE);
+	}
+	g_source_remove(tick);
+	return result;
+}
+
+// post a {id, type, params} req and block for the matching reply, moved into *out on success.
+static bool backend_request(RzFridaBackendSession *backend, RzFridaSession *session,
+	const char *type, const char *params_json, RzFridaResponse *out, RzFridaError *fail_code, const char **fail_msg) {
+	ut64 id = rz_frida_pending_next_id(backend->pending);
+
+	PJ *request = pj_new();
+	if (!request) {
+		*fail_code = RZ_FRIDA_ERROR_INTERNAL;
+		*fail_msg = "cannot build the request";
+		return false;
+	}
+	pj_o(request);
+	pj_kn(request, "id", id);
+	pj_ks(request, "type", type);
+	if (RZ_STR_ISNOTEMPTY(params_json)) {
+		pj_k(request, "params");
+		pj_raw(request, params_json);
+	}
+	pj_end(request);
+	char *request_json = pj_drain(request);
+	if (!request_json) {
+		*fail_code = RZ_FRIDA_ERROR_INTERNAL;
+		*fail_msg = "cannot build the request";
+		return false;
+	}
+
+	if (!rz_frida_pending_add(backend->pending, id)) {
+		free(request_json);
+		*fail_code = RZ_FRIDA_ERROR_INTERNAL;
+		*fail_msg = "cannot track the request";
+		return false;
+	}
+	backend->await_id = id;
+	backend->reply_ready = false;
+	rz_frida_response_fini(&backend->reply);
+
+	frida_script_post(backend->script, request_json, NULL);
+	free(request_json);
+
+	BackendDrainResult drained = backend_drain_reply(backend, session, rz_frida_session_timeout(session));
+	backend->await_id = 0;
+	if (drained != BACKEND_DRAIN_REPLY) {
+		// drop the in-flight id, a late reply for it is ignored after this.
+		rz_frida_pending_take(backend->pending, id);
+		backend->reply_ready = false;
+		switch (drained) {
+		case BACKEND_DRAIN_CANCELLED:
+			*fail_code = RZ_FRIDA_ERROR_CANCELLED;
+			*fail_msg = "the request was cancelled";
+			break;
+		case BACKEND_DRAIN_GONE:
+			*fail_code = RZ_FRIDA_ERROR_INTERNAL;
+			*fail_msg = "the agent script is no longer loaded";
+			break;
+		case BACKEND_DRAIN_TIMEOUT:
+		default:
+			*fail_code = RZ_FRIDA_ERROR_TIMEOUT;
+			*fail_msg = "the request timed out";
+			break;
+		}
+		return false;
+	}
+
+	*out = backend->reply;
+	rz_mem_memzero(&backend->reply, sizeof(backend->reply));
+	backend->reply_ready = false;
+	return true;
+}
+
+// fwd the agent reply as our envelope, the agent's obj becomes the result body as is.
+static bool backend_emit_response(PJ *pj, const RzFridaResponse *response) {
+	if (!response->ok) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL,
+			response->error ? response->error : "the agent reported an error");
+		return false;
+	}
+	pj_o(pj);
+	pj_kb(pj, "ok", true);
+	pj_k(pj, "result");
+	if (response->result) {
+		pj_raw(pj, response->result);
+	} else {
+		pj_o(pj);
+		pj_end(pj);
+	}
+	pj_end(pj);
+	return true;
+}
+
+// create and load the agent script once per session, reload if died.
+static bool backend_ensure_script(RzFridaBackendSession *backend, RzFridaSession *session, PJ *pj) {
+	if (backend->script && !frida_script_is_destroyed(backend->script)) {
+		return true;
+	}
+	if (backend->script) {
+		// died, so drop before reload.
+		backend_script_teardown(backend);
+	}
+	if (!backend->session || frida_session_is_detached(backend->session)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "the session is not attached");
+		return false;
+	}
+	if (!backend->pending) {
+		backend->pending = rz_frida_pending_new();
+		if (!backend->pending) {
+			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate the request registry");
+			return false;
+		}
+	}
+	if (backend->cancellable) {
+		g_cancellable_reset(backend->cancellable);
+	}
+
+	GError *error = NULL;
+	FridaScriptOptions *options = frida_script_options_new();
+	if (!options) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot create the script options");
+		return false;
+	}
+	frida_script_options_set_name(options, "rzfrida");
+	FridaScript *script = frida_session_create_script_sync(backend->session, rz_frida_agent_source, options, backend->cancellable, &error);
+	frida_unref(options);
+	if (!script) {
+		rz_frida_json_error(pj, backend_error_code(backend->cancellable, error),
+			error ? error->message : "cannot create the agent script");
+		if (error) {
+			g_error_free(error);
+		}
+		return false;
+	}
+
+	gulong handler = g_signal_connect(script, "message", G_CALLBACK(backend_on_message), backend);
+	frida_script_load_sync(script, backend->cancellable, &error);
+	if (error) {
+		rz_frida_json_error(pj, backend_error_code(backend->cancellable, error),
+			error->message ? error->message : "cannot load the agent script");
+		g_signal_handler_disconnect(script, handler);
+		frida_unref(script);
+		g_error_free(error);
+		return false;
+	}
+
+	backend->script = script;
+	backend->message_handler = handler;
+	return true;
+}
+
+/**
+ * \brief Evaluate a JavaScript snippet inside the target through the agent.
+ *
+ * Loads the agent on first use, sends an eval request, and writes an ok:true
+ * envelope carrying the value and its type, or an ok:false envelope on
+ * timeout, cancel, or an agent error. When the plugin is built without
+ * frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param source JavaScript expression to evaluate.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with a result, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_eval(RzFridaSession *session, const char *source, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	if (!RZ_STR_ISNOTEMPTY(source)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "missing script source");
+		return false;
+	}
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	pj_o(params);
+	pj_ks(params, "source", source);
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "eval", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief Ping the agent loaded in the target and report what it sees.
+ *
+ * Loads the agent on first use, sends a ping request, and writes an ok:true
+ * envelope carrying the agent version and the target platform, architecture,
+ * and pointer size, or an ok:false envelope on timeout, cancel, or an agent
+ * error. This doubles as a round-trip check of the host-agent message channel.
+ * When the plugin is built without frida-core, a self-contained implementation
+ * reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_ping(RzFridaSession *session, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "ping", NULL, &response, &fail_code, &fail_msg);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
 }

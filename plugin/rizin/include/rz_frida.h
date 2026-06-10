@@ -203,5 +203,7 @@ RZ_IPI bool rz_frida_apps_json(RZ_NULLABLE const RzFridaUri *uri, RZ_NONNULL PJ 
 RZ_IPI bool rz_frida_backend_open(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_resume(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_close(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_eval(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *source, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 
 #endif
