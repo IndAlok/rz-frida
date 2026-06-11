@@ -18,6 +18,7 @@ static const RzCmdDescDetail cmd_fridac_details[2];
 static const RzCmdDescDetail cmd_fridae_details[2];
 static const RzCmdDescDetail cmd_fridal_details[2];
 static const RzCmdDescDetail cmd_fridai_details[2];
+static const RzCmdDescDetail cmd_fridam_details[2];
 static const RzCmdDescDetail cmd_frida_details[8];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
@@ -68,6 +69,7 @@ static const RzCmdDescDetailEntry cmd_frida_Script_space_execution_detail_entrie
 	{ .text = "fridaij", .arg_str = NULL, .comment = "Ping the agent and read its version and target info" },
 	{ .text = "fridaej ", .arg_str = "Process.arch", .comment = "Evaluate a JavaScript expression in the target" },
 	{ .text = "fridalj ", .arg_str = "hook.js", .comment = "Load and evaluate a JavaScript file in the target" },
+	{ .text = "fridamj", .arg_str = NULL, .comment = "Read buffered agent log, error, and send messages" },
 	{ 0 },
 };
 static const RzCmdDescDetail cmd_frida_details[] = {
@@ -342,6 +344,24 @@ static const RzCmdDescHelp cmd_fridai_help = {
 	.args = cmd_fridai_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridam_Examples_detail_entries[] = {
+	{ .text = "fridamj", .arg_str = NULL, .comment = "Read and clear the buffered agent messages as JSON" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridam_details[] = {
+	{ .name = "Examples", .entries = cmd_fridam_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridam_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridam_help = {
+	.summary = "Read buffered agent messages",
+	.description = "Drains the asynchronous output captured from the injected agent: console logs, uncaught script errors, and unsolicited send() notifications with any binary data. Returns them as a JSON array and clears the buffer.",
+	.details = cmd_fridam_details,
+	.args = cmd_fridam_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -380,5 +400,8 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridai_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridai", RZ_OUTPUT_MODE_JSON, rz_cmd_fridai_handler, &cmd_fridai_help);
 	rz_warn_if_fail(cmd_fridai_cd);
+
+	RzCmdDesc *cmd_fridam_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridam", RZ_OUTPUT_MODE_JSON, rz_cmd_fridam_handler, &cmd_fridam_help);
+	rz_warn_if_fail(cmd_fridam_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

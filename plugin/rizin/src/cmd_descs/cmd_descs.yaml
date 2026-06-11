@@ -68,6 +68,8 @@ commands:
           - text: "fridalj "
             arg_str: "hook.js"
             comment: "Load and evaluate a JavaScript file in the target"
+          - text: "fridamj"
+            comment: "Read buffered agent log, error, and send messages"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -319,3 +321,20 @@ commands:
             entries:
               - text: "fridaij"
                 comment: "Ping the agent and read its version and target info"
+      - name: fridam
+        cname: cmd_fridam
+        summary: "Read buffered agent messages"
+        description: >
+          Drains the asynchronous output captured from the injected agent:
+          console logs, uncaught script errors, and unsolicited send()
+          notifications with any binary data. Returns them as a JSON array and
+          clears the buffer.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridamj"
+                comment: "Read and clear the buffered agent messages as JSON"

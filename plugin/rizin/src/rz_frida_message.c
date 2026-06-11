@@ -7,6 +7,7 @@
 #include <rz_frida.h>
 
 #include <rz_util/rz_json.h>
+#include <rz_util/rz_base64.h>
 
 struct rz_frida_pending_t {
 	RzSetU *ids; ///< Ids of requests still awaiting a reply.
@@ -79,7 +80,53 @@ RZ_IPI void rz_frida_agent_message_fini(RzFridaAgentMessage *message) {
 	free(message->stack);
 	free(message->level);
 	free(message->text);
+	free(message->data);
 	rz_mem_memzero(message, sizeof(*message));
+}
+
+RZ_IPI void rz_frida_agent_message_to_json(const RzFridaAgentMessage *message, PJ *pj) {
+	rz_return_if_fail(message && pj);
+
+	pj_o(pj);
+	switch (message->kind) {
+	case RZ_FRIDA_AGENT_MESSAGE_SEND:
+		pj_ks(pj, "kind", "send");
+		if (message->payload) {
+			pj_k(pj, "payload");
+			pj_raw(pj, message->payload);
+		}
+		break;
+	case RZ_FRIDA_AGENT_MESSAGE_ERROR:
+		pj_ks(pj, "kind", "error");
+		if (message->description) {
+			pj_ks(pj, "description", message->description);
+		}
+		if (message->stack) {
+			pj_ks(pj, "stack", message->stack);
+		}
+		break;
+	case RZ_FRIDA_AGENT_MESSAGE_LOG:
+		pj_ks(pj, "kind", "log");
+		if (message->level) {
+			pj_ks(pj, "level", message->level);
+		}
+		if (message->text) {
+			pj_ks(pj, "text", message->text);
+		}
+		break;
+	default:
+		pj_ks(pj, "kind", "unknown");
+		break;
+	}
+	if (message->data && message->data_size) {
+		char *encoded = rz_base64_encode_dyn(message->data, message->data_size);
+		if (encoded) {
+			pj_ks(pj, "data", encoded);
+			free(encoded);
+		}
+		pj_kn(pj, "dataSize", message->data_size);
+	}
+	pj_end(pj);
 }
 
 RZ_IPI bool rz_frida_response_parse(const char *payload, RzFridaResponse *out) {
@@ -199,4 +246,96 @@ RZ_IPI size_t rz_frida_pending_count(const RzFridaPending *pending) {
 RZ_IPI void rz_frida_pending_clear(RzFridaPending *pending) {
 	rz_return_if_fail(pending && pending->ids);
 	rz_set_u_clear(pending->ids);
+}
+
+struct rz_frida_msgbuf_t {
+	RzList /*<RzFridaAgentMessage *>*/ *items; ///< Buffered messages, oldest first.
+	size_t capacity; ///< Most messages kept before the oldest is dropped.
+	ut64 dropped; ///< Count of messages dropped because the buffer was full.
+};
+
+static void msgbuf_item_free(void *p) {
+	RzFridaAgentMessage *message = p;
+	if (!message) {
+		return;
+	}
+	rz_frida_agent_message_fini(message);
+	free(message);
+}
+
+RZ_IPI RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity) {
+	RzFridaMsgBuf *buf = RZ_NEW0(RzFridaMsgBuf);
+	if (!buf) {
+		return NULL;
+	}
+	buf->items = rz_list_newf(msgbuf_item_free);
+	if (!buf->items) {
+		free(buf);
+		return NULL;
+	}
+	buf->capacity = capacity ? capacity : RZ_FRIDA_MSGBUF_CAPACITY;
+	return buf;
+}
+
+RZ_IPI void rz_frida_msgbuf_free(RzFridaMsgBuf *buf) {
+	if (!buf) {
+		return;
+	}
+	rz_list_free(buf->items);
+	free(buf);
+}
+
+RZ_IPI bool rz_frida_msgbuf_push(RzFridaMsgBuf *buf, RzFridaAgentMessage *message) {
+	rz_return_val_if_fail(buf && buf->items && message, false);
+
+	RzFridaAgentMessage *kept = RZ_NEW0(RzFridaAgentMessage);
+	if (!kept) {
+		return false;
+	}
+	*kept = *message;
+	rz_mem_memzero(message, sizeof(*message));
+	if (!rz_list_append(buf->items, kept)) {
+		msgbuf_item_free(kept);
+		return false;
+	}
+	// drop oldest while over capacity so buff remains bounded.
+	while (rz_list_length(buf->items) > buf->capacity) {
+		RzFridaAgentMessage *oldest = rz_list_pop_head(buf->items);
+		msgbuf_item_free(oldest);
+		buf->dropped++;
+	}
+	return true;
+}
+
+RZ_IPI size_t rz_frida_msgbuf_count(const RzFridaMsgBuf *buf) {
+	rz_return_val_if_fail(buf && buf->items, 0);
+	return rz_list_length(buf->items);
+}
+
+RZ_IPI ut64 rz_frida_msgbuf_dropped(const RzFridaMsgBuf *buf) {
+	rz_return_val_if_fail(buf, 0);
+	return buf->dropped;
+}
+
+RZ_IPI void rz_frida_msgbuf_drain_json(RzFridaMsgBuf *buf, PJ *pj) {
+	rz_return_if_fail(buf && buf->items && pj);
+
+	pj_ka(pj, "messages");
+	RzListIter *it;
+	RzFridaAgentMessage *message;
+	rz_list_foreach (buf->items, it, message) {
+		rz_frida_agent_message_to_json(message, pj);
+	}
+	pj_end(pj);
+	pj_kn(pj, "dropped", buf->dropped);
+	rz_frida_msgbuf_clear(buf);
+}
+
+RZ_IPI void rz_frida_msgbuf_clear(RzFridaMsgBuf *buf) {
+	rz_return_if_fail(buf && buf->items);
+	RzFridaAgentMessage *message;
+	while ((message = rz_list_pop_head(buf->items))) {
+		msgbuf_item_free(message);
+	}
+	buf->dropped = 0;
 }

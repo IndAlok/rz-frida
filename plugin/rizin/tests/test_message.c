@@ -128,6 +128,120 @@ static bool test_pending_lifecycle(void) {
 	mu_end;
 }
 
+static bool test_message_to_json_send(void) {
+	RzFridaAgentMessage msg = { 0 };
+	msg.kind = RZ_FRIDA_AGENT_MESSAGE_SEND;
+	msg.payload = rz_str_dup("{\"type\":\"hit\"}");
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	rz_frida_agent_message_to_json(&msg, pj);
+	mu_assert_streq(pj_string(pj), "{\"kind\":\"send\",\"payload\":{\"type\":\"hit\"}}", "send serializes with its payload");
+	pj_free(pj);
+	rz_frida_agent_message_fini(&msg);
+	mu_end;
+}
+
+static bool test_message_to_json_log(void) {
+	RzFridaAgentMessage msg = { 0 };
+	msg.kind = RZ_FRIDA_AGENT_MESSAGE_LOG;
+	msg.level = rz_str_dup("info");
+	msg.text = rz_str_dup("hello");
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	rz_frida_agent_message_to_json(&msg, pj);
+	mu_assert_streq(pj_string(pj), "{\"kind\":\"log\",\"level\":\"info\",\"text\":\"hello\"}", "log serializes with level and text");
+	pj_free(pj);
+	rz_frida_agent_message_fini(&msg);
+	mu_end;
+}
+
+static bool test_message_to_json_error(void) {
+	RzFridaAgentMessage msg = { 0 };
+	msg.kind = RZ_FRIDA_AGENT_MESSAGE_ERROR;
+	msg.description = rz_str_dup("boom");
+	msg.stack = rz_str_dup("at agent.js");
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	rz_frida_agent_message_to_json(&msg, pj);
+	mu_assert_streq(pj_string(pj), "{\"kind\":\"error\",\"description\":\"boom\",\"stack\":\"at agent.js\"}", "error serializes with description and stack");
+	pj_free(pj);
+	rz_frida_agent_message_fini(&msg);
+	mu_end;
+}
+
+static bool test_message_to_json_binary(void) {
+	RzFridaAgentMessage msg = { 0 };
+	msg.kind = RZ_FRIDA_AGENT_MESSAGE_SEND;
+	msg.payload = rz_str_dup("{\"hooked\":true}");
+	const ut8 raw[] = { 0xde, 0xad, 0xbe, 0xef };
+	msg.data = rz_mem_dup(raw, sizeof(raw));
+	mu_assert_notnull(msg.data, "allocate the data blob");
+	msg.data_size = sizeof(raw);
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	rz_frida_agent_message_to_json(&msg, pj);
+	mu_assert_streq(pj_string(pj),
+		"{\"kind\":\"send\",\"payload\":{\"hooked\":true},\"data\":\"3q2+7w==\",\"dataSize\":4}",
+		"send with binary data base64-encodes the blob and reports its size");
+	pj_free(pj);
+	rz_frida_agent_message_fini(&msg);
+	mu_end;
+}
+
+static bool test_msgbuf_lifecycle(void) {
+	RzFridaMsgBuf *buf = rz_frida_msgbuf_new(0);
+	mu_assert_notnull(buf, "allocate message buffer");
+	mu_assert_eq(rz_frida_msgbuf_count(buf), 0, "buffer starts empty");
+
+	RzFridaAgentMessage log = { 0 };
+	log.kind = RZ_FRIDA_AGENT_MESSAGE_LOG;
+	log.level = rz_str_dup("info");
+	log.text = rz_str_dup("first");
+	mu_assert_true(rz_frida_msgbuf_push(buf, &log), "push a log message");
+	mu_assert_null(log.text, "push takes ownership and clears the source");
+	mu_assert_eq(rz_frida_msgbuf_count(buf), 1, "one message buffered");
+
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	pj_o(pj);
+	rz_frida_msgbuf_drain_json(buf, pj);
+	pj_end(pj);
+	mu_assert_streq(pj_string(pj),
+		"{\"messages\":[{\"kind\":\"log\",\"level\":\"info\",\"text\":\"first\"}],\"dropped\":0}",
+		"drain emits the buffered message inside the result object");
+	mu_assert_eq(rz_frida_msgbuf_count(buf), 0, "drain clears the buffer");
+	pj_free(pj);
+	rz_frida_msgbuf_free(buf);
+	mu_end;
+}
+
+static bool test_msgbuf_capacity(void) {
+	RzFridaMsgBuf *buf = rz_frida_msgbuf_new(2);
+	mu_assert_notnull(buf, "allocate a small buffer");
+
+	const char *texts[] = { "a", "b", "c" };
+	for (int i = 0; i < 3; i++) {
+		RzFridaAgentMessage m = { 0 };
+		m.kind = RZ_FRIDA_AGENT_MESSAGE_LOG;
+		m.text = rz_str_dup(texts[i]);
+		mu_assert_true(rz_frida_msgbuf_push(buf, &m), "push within and over capacity");
+	}
+	mu_assert_eq(rz_frida_msgbuf_count(buf), 2, "capacity caps the buffer");
+	mu_assert_eq(rz_frida_msgbuf_dropped(buf), 1, "the oldest message was dropped");
+
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	pj_o(pj);
+	rz_frida_msgbuf_drain_json(buf, pj);
+	pj_end(pj);
+	mu_assert_streq(pj_string(pj),
+		"{\"messages\":[{\"kind\":\"log\",\"text\":\"b\"},{\"kind\":\"log\",\"text\":\"c\"}],\"dropped\":1}",
+		"oldest is evicted, newest two remain, and the drop count is reported");
+	pj_free(pj);
+	rz_frida_msgbuf_free(buf);
+	mu_end;
+}
+
 int all_tests(void) {
 	mu_run_test(test_parse_send_message);
 	mu_run_test(test_parse_error_message);
@@ -139,6 +253,12 @@ int all_tests(void) {
 	mu_run_test(test_response_error_object);
 	mu_run_test(test_response_rejects_non_reply);
 	mu_run_test(test_pending_lifecycle);
+	mu_run_test(test_message_to_json_send);
+	mu_run_test(test_message_to_json_log);
+	mu_run_test(test_message_to_json_error);
+	mu_run_test(test_message_to_json_binary);
+	mu_run_test(test_msgbuf_lifecycle);
+	mu_run_test(test_msgbuf_capacity);
 	return tests_passed != tests_run;
 }
 

@@ -12,6 +12,7 @@
 #include "rzfrida_agent.h"
 
 #define RZ_FRIDA_DRAIN_TICK_MS 50
+#define RZ_FRIDA_MSGBUF_PUMP_BUDGET 256
 
 static int frida_runtime_refs = 0;
 
@@ -332,6 +333,7 @@ typedef struct rz_frida_backend_session_t {
 	ut64 await_id; ///< Request id the active drain waits for, 0 when idle.
 	bool reply_ready; ///< Set when the awaited reply has been captured.
 	RzFridaResponse reply; ///< Captured reply, owned while reply_ready is set.
+	RzFridaMsgBuf *messages; ///< Async agent output not tied to a request.
 } RzFridaBackendSession;
 
 static void backend_script_teardown(RzFridaBackendSession *backend);
@@ -345,6 +347,7 @@ static void backend_session_dispose(RzFridaSession *session) {
 	// unload the agent while the session is still attached, then free the registry.
 	backend_script_teardown(backend);
 	rz_frida_pending_free(backend->pending);
+	rz_frida_msgbuf_free(backend->messages);
 	if (backend->session) {
 		if (!frida_session_is_detached(backend->session)) {
 			frida_session_detach_sync(backend->session, NULL, NULL);
@@ -699,10 +702,9 @@ static void backend_script_teardown(RzFridaBackendSession *backend) {
 	rz_frida_response_fini(&backend->reply);
 }
 
-// match an agent msg to the in-flight req, single threaded inside the drain.
+// match an agent msg to the in-flight req or buffer it as async output, single threaded inside the drain.
 static void backend_on_message(FridaScript *script, const gchar *message, GBytes *data, gpointer user) {
 	(void)script;
-	(void)data;
 	RzFridaBackendSession *backend = user;
 	if (!backend || !message) {
 		return;
@@ -711,6 +713,7 @@ static void backend_on_message(FridaScript *script, const gchar *message, GBytes
 	if (!rz_frida_agent_message_parse(message, &parsed)) {
 		return;
 	}
+	// send may answer in-flight req, capture it as reply.
 	if (parsed.kind == RZ_FRIDA_AGENT_MESSAGE_SEND && parsed.payload) {
 		RzFridaResponse response = { 0 };
 		if (rz_frida_response_parse(parsed.payload, &response)) {
@@ -719,11 +722,26 @@ static void backend_on_message(FridaScript *script, const gchar *message, GBytes
 				backend->reply = response;
 				backend->reply_ready = true;
 				rz_mem_memzero(&response, sizeof(response));
+				rz_frida_agent_message_fini(&parsed);
+				return;
 			}
 			rz_frida_response_fini(&response);
 		}
 	}
-	rz_frida_agent_message_fini(&parsed);
+	// anything else is async script output, keep it with its binary data.
+	if (data) {
+		gsize size = 0;
+		gconstpointer bytes = g_bytes_get_data(data, &size);
+		if (bytes && size > 0) {
+			parsed.data = rz_mem_dup(bytes, (int)size);
+			if (parsed.data) {
+				parsed.data_size = size;
+			}
+		}
+	}
+	if (!backend->messages || !rz_frida_msgbuf_push(backend->messages, &parsed)) {
+		rz_frida_agent_message_fini(&parsed);
+	}
 }
 
 typedef enum {
@@ -857,7 +875,7 @@ static bool backend_emit_response(PJ *pj, const RzFridaResponse *response) {
 }
 
 // create and load the agent script once per session, reload if died.
-static bool backend_ensure_script(RzFridaBackendSession *backend, RzFridaSession *session, PJ *pj) {
+static bool backend_ensure_script(RzFridaBackendSession *backend, RZ_UNUSED RzFridaSession *session, PJ *pj) {
 	if (backend->script && !frida_script_is_destroyed(backend->script)) {
 		return true;
 	}
@@ -873,6 +891,13 @@ static bool backend_ensure_script(RzFridaBackendSession *backend, RzFridaSession
 		backend->pending = rz_frida_pending_new();
 		if (!backend->pending) {
 			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate the request registry");
+			return false;
+		}
+	}
+	if (!backend->messages) {
+		backend->messages = rz_frida_msgbuf_new(0);
+		if (!backend->messages) {
+			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate the message buffer");
 			return false;
 		}
 	}
@@ -1009,4 +1034,43 @@ RZ_IPI bool rz_frida_backend_ping(RzFridaSession *session, PJ *pj) {
 	bool ok = backend_emit_response(pj, &response);
 	rz_frida_response_fini(&response);
 	return ok;
+}
+
+/**
+ * \brief Drain the asynchronous messages captured from the injected agent.
+ *
+ * Pumps the main context without blocking so freshly delivered console output,
+ * script errors, and unsolicited send() notifications are seen, then writes
+ * them as a JSON array and clears the buffer. When the plugin is built without
+ * frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the buffer was drained into an ok envelope.
+ */
+RZ_IPI bool rz_frida_backend_messages(RzFridaSession *session, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	// pump context without blocking so just arrived msgs are seen.
+	if (backend->script && !frida_script_is_destroyed(backend->script)) {
+		int budget = RZ_FRIDA_MSGBUF_PUMP_BUDGET;
+		while (budget-- > 0 && g_main_context_iteration(NULL, FALSE)) {
+		}
+	}
+	rz_frida_json_ok_begin(pj);
+	if (backend->messages) {
+		rz_frida_msgbuf_drain_json(backend->messages, pj);
+	} else {
+		pj_ka(pj, "messages");
+		pj_end(pj);
+		pj_kn(pj, "dropped", 0);
+	}
+	rz_frida_json_ok_end(pj);
+	return true;
 }
