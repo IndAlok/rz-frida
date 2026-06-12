@@ -11,8 +11,7 @@
 
 #include "rzfrida_agent.h"
 
-#define RZ_FRIDA_DRAIN_TICK_MS 50
-#define RZ_FRIDA_MSGBUF_PUMP_BUDGET 256
+#define RZ_FRIDA_DRAIN_POLL_MS 50
 
 static int frida_runtime_refs = 0;
 
@@ -334,6 +333,8 @@ typedef struct rz_frida_backend_session_t {
 	bool reply_ready; ///< Set when the awaited reply has been captured.
 	RzFridaResponse reply; ///< Captured reply, owned while reply_ready is set.
 	RzFridaMsgBuf *messages; ///< Async agent output not tied to a request.
+	GMutex lock; ///< Guards reply state and the async message buffer.
+	GCond reply_cond; ///< Signaled when reply_ready becomes true.
 } RzFridaBackendSession;
 
 static void backend_script_teardown(RzFridaBackendSession *backend);
@@ -368,6 +369,8 @@ static void backend_session_dispose(RzFridaSession *session) {
 	if (backend->cancellable) {
 		g_object_unref(backend->cancellable);
 	}
+	g_cond_clear(&backend->reply_cond);
+	g_mutex_clear(&backend->lock);
 	RZ_FREE(backend);
 }
 
@@ -533,6 +536,8 @@ RZ_IPI bool rz_frida_backend_open(RzFridaSession *session, PJ *pj) {
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate backend session state");
 		goto cleanup;
 	}
+	g_mutex_init(&backend->lock);
+	g_cond_init(&backend->reply_cond);
 	backend->manager = manager;
 	backend->device = device;
 	backend->session = frida_session;
@@ -690,6 +695,12 @@ static void backend_script_teardown(RzFridaBackendSession *backend) {
 		g_signal_handler_disconnect(backend->script, backend->message_handler);
 	}
 	backend->message_handler = 0;
+	g_mutex_lock(&backend->lock);
+	backend->await_id = 0;
+	backend->reply_ready = false;
+	rz_frida_response_fini(&backend->reply);
+	g_cond_broadcast(&backend->reply_cond);
+	g_mutex_unlock(&backend->lock);
 	if (backend->script) {
 		if (!frida_script_is_destroyed(backend->script)) {
 			frida_script_unload_sync(backend->script, NULL, NULL);
@@ -697,12 +708,9 @@ static void backend_script_teardown(RzFridaBackendSession *backend) {
 		frida_unref(backend->script);
 		backend->script = NULL;
 	}
-	backend->await_id = 0;
-	backend->reply_ready = false;
-	rz_frida_response_fini(&backend->reply);
 }
 
-// match an agent msg to the in-flight req or buffer it as async output, single threaded inside the drain.
+// match an agent msg to the in-flight req or buffer it as async output.
 static void backend_on_message(FridaScript *script, const gchar *message, GBytes *data, gpointer user) {
 	(void)script;
 	RzFridaBackendSession *backend = user;
@@ -713,6 +721,7 @@ static void backend_on_message(FridaScript *script, const gchar *message, GBytes
 	if (!rz_frida_agent_message_parse(message, &parsed)) {
 		return;
 	}
+	g_mutex_lock(&backend->lock);
 	// send may answer in-flight req, capture it as reply.
 	if (parsed.kind == RZ_FRIDA_AGENT_MESSAGE_SEND && parsed.payload) {
 		RzFridaResponse response = { 0 };
@@ -722,6 +731,8 @@ static void backend_on_message(FridaScript *script, const gchar *message, GBytes
 				backend->reply = response;
 				backend->reply_ready = true;
 				rz_mem_memzero(&response, sizeof(response));
+				g_cond_signal(&backend->reply_cond);
+				g_mutex_unlock(&backend->lock);
 				rz_frida_agent_message_fini(&parsed);
 				return;
 			}
@@ -742,6 +753,7 @@ static void backend_on_message(FridaScript *script, const gchar *message, GBytes
 	if (!backend->messages || !rz_frida_msgbuf_push(backend->messages, &parsed)) {
 		rz_frida_agent_message_fini(&parsed);
 	}
+	g_mutex_unlock(&backend->lock);
 }
 
 typedef enum {
@@ -751,37 +763,38 @@ typedef enum {
 	BACKEND_DRAIN_GONE,
 } BackendDrainResult;
 
-static gboolean backend_drain_tick(gpointer user) {
-	(void)user;
-	return G_SOURCE_CONTINUE;
-}
-
-// pump the main context until reply lands, deadline passes, or caller cancels.
+// wait until reply lands, deadline passes, or caller cancels.
 static BackendDrainResult backend_drain_reply(RzFridaBackendSession *backend, RzFridaSession *session, ut64 timeout_ms) {
 	const gint64 deadline = g_get_monotonic_time() + (gint64)timeout_ms * 1000;
-	guint tick = g_timeout_add(RZ_FRIDA_DRAIN_TICK_MS, backend_drain_tick, NULL);
 	BackendDrainResult result = BACKEND_DRAIN_TIMEOUT;
-	while (true) {
-		if (backend->reply_ready) {
-			result = BACKEND_DRAIN_REPLY;
-			break;
-		}
+
+	g_mutex_lock(&backend->lock);
+	while (!backend->reply_ready) {
 		if (rz_frida_session_is_cancelled(session) ||
 			(backend->cancellable && g_cancellable_is_cancelled(backend->cancellable))) {
 			result = BACKEND_DRAIN_CANCELLED;
-			break;
+			goto beach;
 		}
 		if (!backend->script || frida_script_is_destroyed(backend->script)) {
 			result = BACKEND_DRAIN_GONE;
-			break;
+			goto beach;
 		}
-		if (g_get_monotonic_time() >= deadline) {
+		const gint64 now = g_get_monotonic_time();
+		if (now >= deadline) {
 			result = BACKEND_DRAIN_TIMEOUT;
-			break;
+			goto beach;
 		}
-		g_main_context_iteration(NULL, TRUE);
+		// wake atleast every poll interval so cancel & destroyed script are seen before deadline.
+		gint64 wake = now + (gint64)RZ_FRIDA_DRAIN_POLL_MS * 1000;
+		if (wake > deadline) {
+			wake = deadline;
+		}
+		g_cond_wait_until(&backend->reply_cond, &backend->lock, wake);
 	}
-	g_source_remove(tick);
+	result = BACKEND_DRAIN_REPLY;
+
+beach:
+	g_mutex_unlock(&backend->lock);
 	return result;
 }
 
@@ -811,7 +824,9 @@ static bool backend_request(RzFridaBackendSession *backend, RzFridaSession *sess
 		return false;
 	}
 
+	g_mutex_lock(&backend->lock);
 	if (!rz_frida_pending_add(backend->pending, id)) {
+		g_mutex_unlock(&backend->lock);
 		free(request_json);
 		*fail_code = RZ_FRIDA_ERROR_INTERNAL;
 		*fail_msg = "cannot track the request";
@@ -820,16 +835,20 @@ static bool backend_request(RzFridaBackendSession *backend, RzFridaSession *sess
 	backend->await_id = id;
 	backend->reply_ready = false;
 	rz_frida_response_fini(&backend->reply);
+	g_mutex_unlock(&backend->lock);
 
 	frida_script_post(backend->script, request_json, NULL);
 	free(request_json);
 
 	BackendDrainResult drained = backend_drain_reply(backend, session, rz_frida_session_timeout(session));
+
+	g_mutex_lock(&backend->lock);
 	backend->await_id = 0;
 	if (drained != BACKEND_DRAIN_REPLY) {
 		// drop the in-flight id, a late reply for it is ignored after this.
 		rz_frida_pending_take(backend->pending, id);
 		backend->reply_ready = false;
+		g_mutex_unlock(&backend->lock);
 		switch (drained) {
 		case BACKEND_DRAIN_CANCELLED:
 			*fail_code = RZ_FRIDA_ERROR_CANCELLED;
@@ -851,6 +870,7 @@ static bool backend_request(RzFridaBackendSession *backend, RzFridaSession *sess
 	*out = backend->reply;
 	rz_mem_memzero(&backend->reply, sizeof(backend->reply));
 	backend->reply_ready = false;
+	g_mutex_unlock(&backend->lock);
 	return true;
 }
 
@@ -875,7 +895,12 @@ static bool backend_emit_response(PJ *pj, const RzFridaResponse *response) {
 }
 
 // create and load the agent script once per session, reload if died.
-static bool backend_ensure_script(RzFridaBackendSession *backend, RZ_UNUSED RzFridaSession *session, PJ *pj) {
+static bool backend_ensure_script(RzFridaBackendSession *backend, RzFridaSession *session, PJ *pj) {
+	// start each req with a clean cancellation state.
+	if (backend->cancellable) {
+		g_cancellable_reset(backend->cancellable);
+	}
+	rz_frida_session_reset_cancel(session);
 	if (backend->script && !frida_script_is_destroyed(backend->script)) {
 		return true;
 	}
@@ -901,10 +926,6 @@ static bool backend_ensure_script(RzFridaBackendSession *backend, RZ_UNUSED RzFr
 			return false;
 		}
 	}
-	if (backend->cancellable) {
-		g_cancellable_reset(backend->cancellable);
-	}
-
 	GError *error = NULL;
 	FridaScriptOptions *options = frida_script_options_new();
 	if (!options) {
@@ -1039,10 +1060,9 @@ RZ_IPI bool rz_frida_backend_ping(RzFridaSession *session, PJ *pj) {
 /**
  * \brief Drain the asynchronous messages captured from the injected agent.
  *
- * Pumps the main context without blocking so freshly delivered console output,
- * script errors, and unsolicited send() notifications are seen, then writes
- * them as a JSON array and clears the buffer. When the plugin is built without
- * frida-core, a self-contained implementation reports
+ * Writes the buffered console output, script errors, and unsolicited send()
+ * notifications as a JSON array and clears the buffer. When the plugin is built
+ * without frida-core, a self-contained implementation reports
  * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
  *
  * \param session Session holding the attached backend handles.
@@ -1057,13 +1077,8 @@ RZ_IPI bool rz_frida_backend_messages(RzFridaSession *session, PJ *pj) {
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
 		return false;
 	}
-	// pump context without blocking so just arrived msgs are seen.
-	if (backend->script && !frida_script_is_destroyed(backend->script)) {
-		int budget = RZ_FRIDA_MSGBUF_PUMP_BUDGET;
-		while (budget-- > 0 && g_main_context_iteration(NULL, FALSE)) {
-		}
-	}
 	rz_frida_json_ok_begin(pj);
+	g_mutex_lock(&backend->lock);
 	if (backend->messages) {
 		rz_frida_msgbuf_drain_json(backend->messages, pj);
 	} else {
@@ -1071,6 +1086,7 @@ RZ_IPI bool rz_frida_backend_messages(RzFridaSession *session, PJ *pj) {
 		pj_end(pj);
 		pj_kn(pj, "dropped", 0);
 	}
+	g_mutex_unlock(&backend->lock);
 	rz_frida_json_ok_end(pj);
 	return true;
 }

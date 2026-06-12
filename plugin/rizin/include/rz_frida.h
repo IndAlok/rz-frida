@@ -170,6 +170,7 @@ RZ_IPI void rz_frida_session_set_timeout(RZ_NONNULL RzFridaSession *session, ut6
 RZ_IPI ut64 rz_frida_session_timeout(RZ_NONNULL const RzFridaSession *session);
 RZ_IPI void rz_frida_session_request_cancel(RZ_NONNULL RzFridaSession *session);
 RZ_IPI bool rz_frida_session_is_cancelled(RZ_NONNULL const RzFridaSession *session);
+RZ_IPI void rz_frida_session_reset_cancel(RZ_NONNULL RzFridaSession *session);
 RZ_IPI void rz_frida_session_set_error(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *message);
 RZ_IPI const char *rz_frida_session_error(RZ_NONNULL const RzFridaSession *session);
 RZ_IPI void rz_frida_session_set_state(RZ_NONNULL RzFridaSession *session, RzFridaSessionState state);
