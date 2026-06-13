@@ -174,9 +174,8 @@ static bool test_message_to_json_binary(void) {
 	msg.kind = RZ_FRIDA_AGENT_MESSAGE_SEND;
 	msg.payload = rz_str_dup("{\"hooked\":true}");
 	const ut8 raw[] = { 0xde, 0xad, 0xbe, 0xef };
-	msg.data = rz_mem_dup(raw, sizeof(raw));
+	msg.data = rz_buf_new_with_bytes(raw, sizeof(raw));
 	mu_assert_notnull(msg.data, "allocate the data blob");
-	msg.data_size = sizeof(raw);
 	PJ *pj = pj_new();
 	mu_assert_notnull(pj, "allocate json builder");
 	rz_frida_agent_message_to_json(&msg, pj);

@@ -9,7 +9,7 @@
 
 #include <frida-core.h>
 
-#include "rzfrida_agent.h"
+#include <rzfrida_agent.h>
 
 #define RZ_FRIDA_DRAIN_POLL_MS 50
 
@@ -744,10 +744,7 @@ static void backend_on_message(FridaScript *script, const gchar *message, GBytes
 		gsize size = 0;
 		gconstpointer bytes = g_bytes_get_data(data, &size);
 		if (bytes && size > 0) {
-			parsed.data = rz_mem_dup(bytes, (int)size);
-			if (parsed.data) {
-				parsed.data_size = size;
-			}
+			parsed.data = rz_buf_new_with_bytes(bytes, size);
 		}
 	}
 	if (!backend->messages || !rz_frida_msgbuf_push(backend->messages, &parsed)) {
@@ -1069,7 +1066,7 @@ RZ_IPI bool rz_frida_backend_ping(RzFridaSession *session, PJ *pj) {
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the buffer was drained into an ok envelope.
  */
-RZ_IPI bool rz_frida_backend_messages(RzFridaSession *session, PJ *pj) {
+RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
 	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);

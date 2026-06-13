@@ -5,8 +5,8 @@
 """Embed the rz-frida agent script as a C string for the backend.
 
 Reads the agent JavaScript and writes a header that defines a NUL terminated
-byte array the backend loads into the target. Regenerate the header after
-editing the agent and commit both (similar to cmd_descs.c).
+byte array the backend loads into the target. Meson runs this during the build
+when Python is available. The checked-in header is the fallback.
 
     python3 agent/embed_agent.py agent/rzfrida_agent.js src/rzfrida_agent.h
 """

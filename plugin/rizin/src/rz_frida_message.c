@@ -80,7 +80,7 @@ RZ_IPI void rz_frida_agent_message_fini(RzFridaAgentMessage *message) {
 	free(message->stack);
 	free(message->level);
 	free(message->text);
-	free(message->data);
+	rz_buf_free(message->data);
 	rz_mem_memzero(message, sizeof(*message));
 }
 
@@ -118,13 +118,21 @@ RZ_IPI void rz_frida_agent_message_to_json(const RzFridaAgentMessage *message, P
 		pj_ks(pj, "kind", "unknown");
 		break;
 	}
-	if (message->data && message->data_size) {
-		char *encoded = rz_base64_encode_dyn(message->data, message->data_size);
+	if (message->data) {
+		ut64 data_size = rz_buf_size(message->data);
+		char *encoded = NULL;
+		if (data_size && data_size <= (ut64)ST64_MAX && data_size <= (ut64)SIZE_MAX) {
+			ut8 *data = malloc((size_t)data_size);
+			if (data && rz_buf_read_at(message->data, 0, data, data_size) == (st64)data_size) {
+				encoded = rz_base64_encode_dyn(data, (size_t)data_size);
+			}
+			free(data);
+		}
 		if (encoded) {
 			pj_ks(pj, "data", encoded);
 			free(encoded);
 		}
-		pj_kn(pj, "dataSize", message->data_size);
+		pj_kn(pj, "dataSize", data_size);
 	}
 	pj_end(pj);
 }

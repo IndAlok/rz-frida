@@ -97,10 +97,24 @@ else
   rz_frida_backend_src = 'src/rz_frida_backend_null.c'
 endif
 
-rz_frida_incs = include_directories('include', 'src/cmd_descs')
-rz_frida_test_incs = include_directories('include', 'src/cmd_descs', 'tests')
+python = import('python').find_installation(required: false)
+rz_frida_agent_header = files('src/rzfrida_agent.h')
+if python.found()
+  rz_frida_agent_embed = files('agent/embed_agent.py')
+  rz_frida_agent_header = custom_target(
+    'rzfrida_agent.h',
+    input: 'agent/rzfrida_agent.js',
+    output: 'rzfrida_agent.h',
+    command: [python, rz_frida_agent_embed, '@INPUT@', '@OUTPUT@'],
+    depend_files: rz_frida_agent_embed,
+  )
+endif
+
+rz_frida_incs = include_directories('.', 'include', 'src', 'src/cmd_descs')
+rz_frida_test_incs = include_directories('.', 'include', 'src', 'src/cmd_descs', 'tests')
 
 rz_frida_src = [
+  rz_frida_agent_header,
   rz_frida_backend_src,
   'src/cmd_descs/cmd_descs.c',
   'src/rz_frida_message.c',
@@ -177,6 +191,7 @@ test('backend unavailable response', test_backend)
 test_plugin = executable('test_plugin',
   [
     'tests/test_plugin.c',
+    rz_frida_agent_header,
     rz_frida_backend_src,
     'src/cmd_descs/cmd_descs.c',
     'src/rz_frida_message.c',

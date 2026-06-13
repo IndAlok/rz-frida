@@ -61,7 +61,7 @@ RZ_IPI bool rz_frida_backend_ping(RzFridaSession *session, PJ *pj) {
 	return false;
 }
 
-RZ_IPI bool rz_frida_backend_messages(RzFridaSession *session, PJ *pj) {
+RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
 	return false;

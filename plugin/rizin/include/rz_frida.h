@@ -96,8 +96,7 @@ typedef struct rz_frida_agent_message_t {
 	char *stack; ///< Error stack trace, or NULL.
 	char *level; ///< Log level, or NULL.
 	char *text; ///< Log text, or NULL.
-	ut8 *data; ///< Optional binary blob from a send message, or NULL.
-	size_t data_size; ///< Length of the binary blob in bytes.
+	RzBuffer *data; ///< Optional binary blob from a send message, or NULL.
 } RzFridaAgentMessage;
 
 /**
@@ -190,9 +189,9 @@ RZ_IPI void rz_frida_json_ok_end(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_ok_empty(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_error(RZ_NONNULL PJ *pj, RzFridaError error, RZ_NULLABLE const char *message);
 
-RZ_IPI bool rz_frida_agent_message_parse(RZ_NONNULL const char *message, RZ_NONNULL RzFridaAgentMessage *out);
-RZ_IPI void rz_frida_agent_message_fini(RZ_NULLABLE RzFridaAgentMessage *message);
-RZ_IPI void rz_frida_agent_message_to_json(RZ_NONNULL const RzFridaAgentMessage *message, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_agent_message_parse(RZ_NONNULL RZ_BORROW const char *message, RZ_NONNULL RZ_BORROW RZ_OUT RzFridaAgentMessage *out);
+RZ_IPI void rz_frida_agent_message_fini(RZ_NULLABLE RZ_BORROW RzFridaAgentMessage *message);
+RZ_IPI void rz_frida_agent_message_to_json(RZ_NONNULL RZ_BORROW const RzFridaAgentMessage *message, RZ_NONNULL RZ_BORROW PJ *pj);
 RZ_IPI bool rz_frida_response_parse(RZ_NONNULL const char *payload, RZ_NONNULL RzFridaResponse *out);
 RZ_IPI void rz_frida_response_fini(RZ_NULLABLE RzFridaResponse *response);
 
@@ -205,13 +204,13 @@ RZ_IPI bool rz_frida_pending_take(RZ_NONNULL RzFridaPending *pending, ut64 id);
 RZ_IPI size_t rz_frida_pending_count(RZ_NONNULL const RzFridaPending *pending);
 RZ_IPI void rz_frida_pending_clear(RZ_NONNULL RzFridaPending *pending);
 
-RZ_IPI RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity);
-RZ_IPI void rz_frida_msgbuf_free(RZ_NULLABLE RzFridaMsgBuf *buf);
-RZ_IPI bool rz_frida_msgbuf_push(RZ_NONNULL RzFridaMsgBuf *buf, RZ_NONNULL RzFridaAgentMessage *message);
-RZ_IPI size_t rz_frida_msgbuf_count(RZ_NONNULL const RzFridaMsgBuf *buf);
-RZ_IPI ut64 rz_frida_msgbuf_dropped(RZ_NONNULL const RzFridaMsgBuf *buf);
-RZ_IPI void rz_frida_msgbuf_drain_json(RZ_NONNULL RzFridaMsgBuf *buf, RZ_NONNULL PJ *pj);
-RZ_IPI void rz_frida_msgbuf_clear(RZ_NONNULL RzFridaMsgBuf *buf);
+RZ_IPI RZ_OWN RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity);
+RZ_IPI void rz_frida_msgbuf_free(RZ_NULLABLE RZ_OWN RzFridaMsgBuf *buf);
+RZ_IPI bool rz_frida_msgbuf_push(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf, RZ_NONNULL RZ_BORROW RZ_INOUT RzFridaAgentMessage *message);
+RZ_IPI size_t rz_frida_msgbuf_count(RZ_NONNULL RZ_BORROW const RzFridaMsgBuf *buf);
+RZ_IPI ut64 rz_frida_msgbuf_dropped(RZ_NONNULL RZ_BORROW const RzFridaMsgBuf *buf);
+RZ_IPI void rz_frida_msgbuf_drain_json(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf, RZ_NONNULL RZ_BORROW PJ *pj);
+RZ_IPI void rz_frida_msgbuf_clear(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf);
 
 RZ_IPI void rz_frida_backend_init(void);
 RZ_IPI void rz_frida_backend_deinit(void);
@@ -223,6 +222,6 @@ RZ_IPI bool rz_frida_backend_resume(RZ_NONNULL RzFridaSession *session, RZ_NONNU
 RZ_IPI bool rz_frida_backend_close(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_eval(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *source, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
-RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj);
 
 #endif
