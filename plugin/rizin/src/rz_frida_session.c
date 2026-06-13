@@ -114,6 +114,11 @@ RZ_IPI bool rz_frida_session_is_cancelled(const RzFridaSession *session) {
 	return session->cancel_requested;
 }
 
+RZ_IPI void rz_frida_session_reset_cancel(RzFridaSession *session) {
+	rz_return_if_fail(session);
+	session->cancel_requested = false;
+}
+
 RZ_IPI void rz_frida_session_set_error(RzFridaSession *session, const char *message) {
 	rz_return_if_fail(session);
 	char *copy = rz_str_dup(message ? message : "internal error");

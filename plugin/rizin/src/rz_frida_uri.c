@@ -97,10 +97,10 @@ RZ_IPI void rz_frida_uri_fini(RzFridaUri *uri) {
 	if (!uri) {
 		return;
 	}
-	RZ_FREE(uri->action);
-	RZ_FREE(uri->transport);
-	RZ_FREE(uri->device);
-	RZ_FREE(uri->target);
+	free(uri->action);
+	free(uri->transport);
+	free(uri->device);
+	free(uri->target);
 	rz_mem_memzero(uri, sizeof(*uri));
 }
 

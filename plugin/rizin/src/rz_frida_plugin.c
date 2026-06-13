@@ -256,6 +256,91 @@ RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
+// cancel in-flight agent req after Ctrl-C.
+static void frida_cancel_on_break(void *user) {
+	rz_frida_session_request_cancel((RzFridaSession *)user);
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_eval(ctx->session, argv[1], pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	char *source = rz_file_slurp(argv[1], NULL);
+	if (!source) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "cannot read the script file");
+		return RZ_CMD_STATUS_OK;
+	}
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_eval(ctx->session, source, pj);
+	rz_cons_break_pop();
+	free(source);
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_ping(ctx->session, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_frida_backend_messages(ctx->session, pj);
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }

@@ -19,6 +19,10 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridao"), "fridao command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridar"), "fridar command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridac"), "fridac command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridae"), "fridae command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridal"), "fridal command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridai"), "fridai command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridam"), "fridam command is registered");
 	mu_end;
 }
 
@@ -130,6 +134,46 @@ static bool test_close_without_session(RzCore *core) {
 	mu_end;
 }
 
+static bool test_eval_without_session(RzCore *core) {
+	char *eval = rz_core_cmd_str(core, "fridaej Process.arch");
+	mu_assert_notnull(eval, "eval command returns output");
+	mu_assert_streq(eval,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"eval without an open session reports the precondition failure");
+	RZ_FREE(eval);
+	mu_end;
+}
+
+static bool test_load_without_session(RzCore *core) {
+	char *load = rz_core_cmd_str(core, "fridalj hook.js");
+	mu_assert_notnull(load, "load command returns output");
+	mu_assert_streq(load,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"load without an open session reports the precondition failure");
+	RZ_FREE(load);
+	mu_end;
+}
+
+static bool test_ping_without_session(RzCore *core) {
+	char *ping = rz_core_cmd_str(core, "fridaij");
+	mu_assert_notnull(ping, "ping command returns output");
+	mu_assert_streq(ping,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"ping without an open session reports the precondition failure");
+	RZ_FREE(ping);
+	mu_end;
+}
+
+static bool test_messages_without_session(RzCore *core) {
+	char *messages = rz_core_cmd_str(core, "fridamj");
+	mu_assert_notnull(messages, "messages command returns output");
+	mu_assert_streq(messages,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"messages without an open session reports the precondition failure");
+	RZ_FREE(messages);
+	mu_end;
+}
+
 static bool test_invalid_open_uri(RzCore *core) {
 	char *open = rz_core_cmd_str(core, "fridaoj gdb://attach/local//1234");
 	mu_assert_notnull(open, "open command returns output");
@@ -192,6 +236,10 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridao"), "fridao command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridar"), "fridar command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridac"), "fridac command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridae"), "fridae command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridal"), "fridal command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridai"), "fridai command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridam"), "fridam command is removed");
 	mu_end;
 }
 
@@ -214,6 +262,10 @@ int all_tests(void) {
 	mu_run_test(test_mismatched_listing_uri, core);
 	mu_run_test(test_resume_without_session, core);
 	mu_run_test(test_close_without_session, core);
+	mu_run_test(test_eval_without_session, core);
+	mu_run_test(test_load_without_session, core);
+	mu_run_test(test_ping_without_session, core);
+	mu_run_test(test_messages_without_session, core);
 	mu_run_test(test_invalid_open_uri, core);
 	mu_run_test(test_open_command, core);
 	mu_run_test(test_open_usb_command, core);

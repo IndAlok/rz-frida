@@ -8,6 +8,7 @@
 #include <rz_util.h>
 
 #define RZ_FRIDA_DEFAULT_TIMEOUT_MS 5000
+#define RZ_FRIDA_MSGBUF_CAPACITY 256
 
 /**
  * \brief URI operation requested by the frontend or command layer.
@@ -74,6 +75,53 @@ typedef enum rz_frida_error_t {
 } RzFridaError;
 
 /**
+ * \brief Class of message delivered by the injected agent.
+ */
+typedef enum rz_frida_agent_message_kind_t {
+	RZ_FRIDA_AGENT_MESSAGE_UNKNOWN = 0, ///< Unrecognized or malformed message.
+	RZ_FRIDA_AGENT_MESSAGE_SEND, ///< Payload from the agent send() call.
+	RZ_FRIDA_AGENT_MESSAGE_ERROR, ///< Uncaught error raised by the script.
+	RZ_FRIDA_AGENT_MESSAGE_LOG, ///< Console output forwarded by the runtime.
+} RzFridaAgentMessageKind;
+
+/**
+ * \brief Decoded message delivered by the injected agent.
+ *
+ * Owns the text it carries. Release the fields with \ref rz_frida_agent_message_fini.
+ */
+typedef struct rz_frida_agent_message_t {
+	RzFridaAgentMessageKind kind; ///< Message class.
+	char *payload; ///< send() payload as JSON text, or NULL.
+	char *description; ///< Error description, or NULL.
+	char *stack; ///< Error stack trace, or NULL.
+	char *level; ///< Log level, or NULL.
+	char *text; ///< Log text, or NULL.
+	RzBuffer *data; ///< Optional binary blob from a send message, or NULL.
+} RzFridaAgentMessage;
+
+/**
+ * \brief Reply to a host request decoded from an agent send() payload.
+ *
+ * Owns the text it carries. Release the fields with \ref rz_frida_response_fini.
+ */
+typedef struct rz_frida_response_t {
+	ut64 id; ///< Request id the reply answers.
+	bool ok; ///< True when the request succeeded.
+	char *result; ///< Result as JSON text on success, or NULL.
+	char *error; ///< Error message on failure, or NULL.
+} RzFridaResponse;
+
+/**
+ * \brief Tracks the ids of host requests still awaiting a reply.
+ */
+typedef struct rz_frida_pending_t RzFridaPending;
+
+/**
+ * \brief Bounded buffer of asynchronous messages from the injected agent.
+ */
+typedef struct rz_frida_msgbuf_t RzFridaMsgBuf;
+
+/**
  * \brief Parsed and validated frida:// URI.
  */
 typedef struct rz_frida_uri_t {
@@ -121,6 +169,7 @@ RZ_IPI void rz_frida_session_set_timeout(RZ_NONNULL RzFridaSession *session, ut6
 RZ_IPI ut64 rz_frida_session_timeout(RZ_NONNULL const RzFridaSession *session);
 RZ_IPI void rz_frida_session_request_cancel(RZ_NONNULL RzFridaSession *session);
 RZ_IPI bool rz_frida_session_is_cancelled(RZ_NONNULL const RzFridaSession *session);
+RZ_IPI void rz_frida_session_reset_cancel(RZ_NONNULL RzFridaSession *session);
 RZ_IPI void rz_frida_session_set_error(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *message);
 RZ_IPI const char *rz_frida_session_error(RZ_NONNULL const RzFridaSession *session);
 RZ_IPI void rz_frida_session_set_state(RZ_NONNULL RzFridaSession *session, RzFridaSessionState state);
@@ -140,6 +189,29 @@ RZ_IPI void rz_frida_json_ok_end(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_ok_empty(RZ_NONNULL PJ *pj);
 RZ_IPI void rz_frida_json_error(RZ_NONNULL PJ *pj, RzFridaError error, RZ_NULLABLE const char *message);
 
+RZ_IPI bool rz_frida_agent_message_parse(RZ_NONNULL RZ_BORROW const char *message, RZ_NONNULL RZ_BORROW RZ_OUT RzFridaAgentMessage *out);
+RZ_IPI void rz_frida_agent_message_fini(RZ_NULLABLE RZ_BORROW RzFridaAgentMessage *message);
+RZ_IPI void rz_frida_agent_message_to_json(RZ_NONNULL RZ_BORROW const RzFridaAgentMessage *message, RZ_NONNULL RZ_BORROW PJ *pj);
+RZ_IPI bool rz_frida_response_parse(RZ_NONNULL const char *payload, RZ_NONNULL RzFridaResponse *out);
+RZ_IPI void rz_frida_response_fini(RZ_NULLABLE RzFridaResponse *response);
+
+RZ_IPI RzFridaPending *rz_frida_pending_new(void);
+RZ_IPI void rz_frida_pending_free(RZ_NULLABLE RzFridaPending *pending);
+RZ_IPI ut64 rz_frida_pending_next_id(RZ_NONNULL RzFridaPending *pending);
+RZ_IPI bool rz_frida_pending_add(RZ_NONNULL RzFridaPending *pending, ut64 id);
+RZ_IPI bool rz_frida_pending_contains(RZ_NONNULL const RzFridaPending *pending, ut64 id);
+RZ_IPI bool rz_frida_pending_take(RZ_NONNULL RzFridaPending *pending, ut64 id);
+RZ_IPI size_t rz_frida_pending_count(RZ_NONNULL const RzFridaPending *pending);
+RZ_IPI void rz_frida_pending_clear(RZ_NONNULL RzFridaPending *pending);
+
+RZ_IPI RZ_OWN RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity);
+RZ_IPI void rz_frida_msgbuf_free(RZ_NULLABLE RZ_OWN RzFridaMsgBuf *buf);
+RZ_IPI bool rz_frida_msgbuf_push(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf, RZ_NONNULL RZ_BORROW RZ_INOUT RzFridaAgentMessage *message);
+RZ_IPI size_t rz_frida_msgbuf_count(RZ_NONNULL RZ_BORROW const RzFridaMsgBuf *buf);
+RZ_IPI ut64 rz_frida_msgbuf_dropped(RZ_NONNULL RZ_BORROW const RzFridaMsgBuf *buf);
+RZ_IPI void rz_frida_msgbuf_drain_json(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf, RZ_NONNULL RZ_BORROW PJ *pj);
+RZ_IPI void rz_frida_msgbuf_clear(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf);
+
 RZ_IPI void rz_frida_backend_init(void);
 RZ_IPI void rz_frida_backend_deinit(void);
 RZ_IPI bool rz_frida_devices_json(RZ_NONNULL PJ *pj);
@@ -148,5 +220,8 @@ RZ_IPI bool rz_frida_apps_json(RZ_NULLABLE const RzFridaUri *uri, RZ_NONNULL PJ 
 RZ_IPI bool rz_frida_backend_open(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_resume(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_close(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_eval(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *source, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj);
 
 #endif
