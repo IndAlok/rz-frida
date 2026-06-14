@@ -58,6 +58,18 @@ commands:
             comment: "Resume the spawned target"
           - text: "fridacj"
             comment: "Close the open session"
+      - name: "Script execution"
+        entries:
+          - text: "fridaij"
+            comment: "Ping the agent and read its version and target info"
+          - text: "fridaej "
+            arg_str: "Process.arch"
+            comment: "Evaluate a JavaScript expression in the target process"
+          - text: "fridalj "
+            arg_str: "hook.js"
+            comment: "Load and evaluate a JavaScript file in the target process"
+          - text: "fridamj"
+            comment: "Read buffered agent log, error, and send messages"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -71,13 +83,6 @@ commands:
           - RZ_OUTPUT_MODE_STANDARD
           - RZ_OUTPUT_MODE_JSON
         args: []
-        details:
-          - name: "Examples"
-            entries:
-              - text: "fridas"
-                comment: "active and state lines in plain text"
-              - text: "fridasj"
-                comment: "Same data wrapped in the rz-frida JSON envelope"
       - name: fridau
         cname: cmd_fridau
         summary: "Validate a frida:// URI"
@@ -134,11 +139,6 @@ commands:
         modes:
           - RZ_OUTPUT_MODE_JSON
         args: []
-        details:
-          - name: "Examples"
-            entries:
-              - text: "fridadj"
-                comment: "List devices as JSON; returns a frida_unavailable error if built without frida-core"
       - name: fridap
         cname: cmd_fridap
         summary: "List processes on a device"
@@ -229,11 +229,6 @@ commands:
         modes:
           - RZ_OUTPUT_MODE_JSON
         args: []
-        details:
-          - name: "Examples"
-            entries:
-              - text: "fridarj"
-                comment: "Resume the spawned target, and returns an error if no session is open"
       - name: fridac
         cname: cmd_fridac
         summary: "Close the open Frida session"
@@ -245,8 +240,69 @@ commands:
         modes:
           - RZ_OUTPUT_MODE_JSON
         args: []
+      - name: fridae
+        cname: cmd_fridae
+        summary: "Evaluate JavaScript in the target process"
+        description: >
+          Loads the rz-frida agent into the open session on first use, then
+          evaluates a JavaScript expression inside the target process and
+          returns its value and type. Quote the expression when it contains
+          spaces, or use fridal for a script that lives in a file.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: source
+            type: RZ_CMD_ARG_TYPE_STRING
         details:
           - name: "Examples"
             entries:
-              - text: "fridacj"
-                comment: "Close the open session, and return an error if none is open"
+              - text: "fridaej "
+                arg_str: "Process.arch"
+                comment: "Read the target architecture from the agent"
+              - text: "fridaej "
+                arg_str: "\"1 + 1\""
+                comment: "Evaluate an expression, quote it when it has spaces"
+      - name: fridal
+        cname: cmd_fridal
+        summary: "Load and evaluate a JavaScript file in the target process"
+        description: >
+          Reads a JavaScript file from disk and evaluates it inside the target
+          process through the rz-frida agent. Useful for instrumentation
+          scripts that are too large to pass on the command line.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: file
+            type: RZ_CMD_ARG_TYPE_FILE
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridalj "
+                arg_str: "hook.js"
+                comment: "Evaluate hook.js inside the target process"
+      - name: fridai
+        cname: cmd_fridai
+        summary: "Ping the agent in the target process"
+        description: >
+          Loads the rz-frida agent into the open session on first use and pings
+          it, returning the agent version and the target platform, architecture,
+          and pointer size. A quick way to check the host-agent message channel
+          is alive.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+      - name: fridam
+        cname: cmd_fridam
+        summary: "Read buffered agent messages"
+        description: >
+          Drains the asynchronous output captured from the injected agent:
+          console logs, uncaught script errors, and unsolicited send()
+          notifications with any binary data. Returns them as a JSON array and
+          clears the buffer.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
