@@ -192,17 +192,17 @@ RZ_IPI void rz_frida_json_error(RZ_NONNULL PJ *pj, RzFridaError error, RZ_NULLAB
 RZ_IPI bool rz_frida_agent_message_parse(RZ_NONNULL RZ_BORROW const char *message, RZ_NONNULL RZ_BORROW RZ_OUT RzFridaAgentMessage *out);
 RZ_IPI void rz_frida_agent_message_fini(RZ_NULLABLE RZ_BORROW RzFridaAgentMessage *message);
 RZ_IPI void rz_frida_agent_message_to_json(RZ_NONNULL RZ_BORROW const RzFridaAgentMessage *message, RZ_NONNULL RZ_BORROW PJ *pj);
-RZ_IPI bool rz_frida_response_parse(RZ_NONNULL const char *payload, RZ_NONNULL RzFridaResponse *out);
-RZ_IPI void rz_frida_response_fini(RZ_NULLABLE RzFridaResponse *response);
+RZ_IPI bool rz_frida_response_parse(RZ_NONNULL const char *payload, RZ_NONNULL RZ_OUT RzFridaResponse *out);
+RZ_IPI void rz_frida_response_fini(RZ_NULLABLE RZ_BORROW RzFridaResponse *response);
 
-RZ_IPI RzFridaPending *rz_frida_pending_new(void);
-RZ_IPI void rz_frida_pending_free(RZ_NULLABLE RzFridaPending *pending);
-RZ_IPI ut64 rz_frida_pending_next_id(RZ_NONNULL RzFridaPending *pending);
-RZ_IPI bool rz_frida_pending_add(RZ_NONNULL RzFridaPending *pending, ut64 id);
+RZ_IPI RZ_OWN RzFridaPending *rz_frida_pending_new(void);
+RZ_IPI void rz_frida_pending_free(RZ_NULLABLE RZ_OWN RzFridaPending *pending);
+RZ_IPI ut64 rz_frida_pending_next_id(RZ_NONNULL RZ_BORROW RzFridaPending *pending);
+RZ_IPI bool rz_frida_pending_add(RZ_NONNULL RZ_BORROW RzFridaPending *pending, ut64 id);
 RZ_IPI bool rz_frida_pending_contains(RZ_NONNULL const RzFridaPending *pending, ut64 id);
-RZ_IPI bool rz_frida_pending_take(RZ_NONNULL RzFridaPending *pending, ut64 id);
+RZ_IPI bool rz_frida_pending_take(RZ_NONNULL RZ_BORROW RzFridaPending *pending, ut64 id);
 RZ_IPI size_t rz_frida_pending_count(RZ_NONNULL const RzFridaPending *pending);
-RZ_IPI void rz_frida_pending_clear(RZ_NONNULL RzFridaPending *pending);
+RZ_IPI void rz_frida_pending_clear(RZ_NONNULL RZ_BORROW RzFridaPending *pending);
 
 RZ_IPI RZ_OWN RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity);
 RZ_IPI void rz_frida_msgbuf_free(RZ_NULLABLE RZ_OWN RzFridaMsgBuf *buf);

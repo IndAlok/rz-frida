@@ -930,7 +930,8 @@ static bool backend_ensure_script(RzFridaBackendSession *backend, RzFridaSession
 		return false;
 	}
 	frida_script_options_set_name(options, "rzfrida");
-	FridaScript *script = frida_session_create_script_sync(backend->session, rz_frida_agent_source, options, backend->cancellable, &error);
+	// embedded agent is unsigned byte array, frida needs c string.
+	FridaScript *script = frida_session_create_script_sync(backend->session, (const char *)rz_frida_agent_source, options, backend->cancellable, &error);
 	frida_unref(options);
 	if (!script) {
 		rz_frida_json_error(pj, backend_error_code(backend->cancellable, error),

@@ -27,7 +27,7 @@ def render(data):
         "#ifndef RZ_FRIDA_AGENT_SOURCE_H",
         "#define RZ_FRIDA_AGENT_SOURCE_H",
         "",
-        "static const char rz_frida_agent_source[] = {",
+        "static const unsigned char rz_frida_agent_source[] = {",
     ]
     values = ["0x%02x," % b for b in data]
     values.append("0x00")

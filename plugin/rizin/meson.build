@@ -206,3 +206,13 @@ test_plugin = executable('test_plugin',
 )
 
 test('plugin command registration', test_plugin)
+
+node_exe = find_program('node', 'nodejs', required: false)
+if node_exe.found()
+  test('agent script protocol', node_exe,
+    args: [
+      files('tests/test_agent.js'),
+      files('agent/rzfrida_agent.js'),
+    ],
+  )
+endif

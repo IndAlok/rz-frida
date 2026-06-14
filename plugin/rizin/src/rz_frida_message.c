@@ -22,7 +22,7 @@ static char *dup_str_field(const RzJson *object, const char *key) {
 	return rz_str_dup(field->str_value);
 }
 
-RZ_IPI bool rz_frida_agent_message_parse(const char *message, RzFridaAgentMessage *out) {
+RZ_IPI bool rz_frida_agent_message_parse(RZ_NONNULL const char *message, RZ_NONNULL RZ_OUT RzFridaAgentMessage *out) {
 	rz_return_val_if_fail(message && out, false);
 
 	rz_mem_memzero(out, sizeof(*out));
@@ -71,7 +71,7 @@ beach:
 	return ok;
 }
 
-RZ_IPI void rz_frida_agent_message_fini(RzFridaAgentMessage *message) {
+RZ_IPI void rz_frida_agent_message_fini(RZ_NULLABLE RZ_BORROW RzFridaAgentMessage *message) {
 	if (!message) {
 		return;
 	}
@@ -84,7 +84,7 @@ RZ_IPI void rz_frida_agent_message_fini(RzFridaAgentMessage *message) {
 	rz_mem_memzero(message, sizeof(*message));
 }
 
-RZ_IPI void rz_frida_agent_message_to_json(const RzFridaAgentMessage *message, PJ *pj) {
+RZ_IPI void rz_frida_agent_message_to_json(RZ_NONNULL const RzFridaAgentMessage *message, RZ_NONNULL RZ_BORROW PJ *pj) {
 	rz_return_if_fail(message && pj);
 
 	pj_o(pj);
@@ -137,7 +137,7 @@ RZ_IPI void rz_frida_agent_message_to_json(const RzFridaAgentMessage *message, P
 	pj_end(pj);
 }
 
-RZ_IPI bool rz_frida_response_parse(const char *payload, RzFridaResponse *out) {
+RZ_IPI bool rz_frida_response_parse(RZ_NONNULL const char *payload, RZ_NONNULL RZ_OUT RzFridaResponse *out) {
 	rz_return_val_if_fail(payload && out, false);
 
 	rz_mem_memzero(out, sizeof(*out));
@@ -186,7 +186,7 @@ beach:
 	return ok;
 }
 
-RZ_IPI void rz_frida_response_fini(RzFridaResponse *response) {
+RZ_IPI void rz_frida_response_fini(RZ_NULLABLE RZ_BORROW RzFridaResponse *response) {
 	if (!response) {
 		return;
 	}
@@ -195,7 +195,7 @@ RZ_IPI void rz_frida_response_fini(RzFridaResponse *response) {
 	rz_mem_memzero(response, sizeof(*response));
 }
 
-RZ_IPI RzFridaPending *rz_frida_pending_new(void) {
+RZ_IPI RZ_OWN RzFridaPending *rz_frida_pending_new(void) {
 	RzFridaPending *pending = RZ_NEW0(RzFridaPending);
 	if (!pending) {
 		return NULL;
@@ -210,7 +210,7 @@ RZ_IPI RzFridaPending *rz_frida_pending_new(void) {
 	return pending;
 }
 
-RZ_IPI void rz_frida_pending_free(RzFridaPending *pending) {
+RZ_IPI void rz_frida_pending_free(RZ_NULLABLE RZ_OWN RzFridaPending *pending) {
 	if (!pending) {
 		return;
 	}
@@ -218,12 +218,12 @@ RZ_IPI void rz_frida_pending_free(RzFridaPending *pending) {
 	free(pending);
 }
 
-RZ_IPI ut64 rz_frida_pending_next_id(RzFridaPending *pending) {
+RZ_IPI ut64 rz_frida_pending_next_id(RZ_NONNULL RZ_BORROW RzFridaPending *pending) {
 	rz_return_val_if_fail(pending, 0);
 	return pending->next_id++;
 }
 
-RZ_IPI bool rz_frida_pending_add(RzFridaPending *pending, ut64 id) {
+RZ_IPI bool rz_frida_pending_add(RZ_NONNULL RZ_BORROW RzFridaPending *pending, ut64 id) {
 	rz_return_val_if_fail(pending && pending->ids, false);
 	if (rz_set_u_contains(pending->ids, id)) {
 		return false;
@@ -232,12 +232,12 @@ RZ_IPI bool rz_frida_pending_add(RzFridaPending *pending, ut64 id) {
 	return true;
 }
 
-RZ_IPI bool rz_frida_pending_contains(const RzFridaPending *pending, ut64 id) {
+RZ_IPI bool rz_frida_pending_contains(RZ_NONNULL const RzFridaPending *pending, ut64 id) {
 	rz_return_val_if_fail(pending && pending->ids, false);
 	return rz_set_u_contains(pending->ids, id);
 }
 
-RZ_IPI bool rz_frida_pending_take(RzFridaPending *pending, ut64 id) {
+RZ_IPI bool rz_frida_pending_take(RZ_NONNULL RZ_BORROW RzFridaPending *pending, ut64 id) {
 	rz_return_val_if_fail(pending && pending->ids, false);
 	if (!rz_set_u_contains(pending->ids, id)) {
 		return false;
@@ -246,12 +246,12 @@ RZ_IPI bool rz_frida_pending_take(RzFridaPending *pending, ut64 id) {
 	return true;
 }
 
-RZ_IPI size_t rz_frida_pending_count(const RzFridaPending *pending) {
+RZ_IPI size_t rz_frida_pending_count(RZ_NONNULL const RzFridaPending *pending) {
 	rz_return_val_if_fail(pending && pending->ids, 0);
 	return rz_set_u_size(pending->ids);
 }
 
-RZ_IPI void rz_frida_pending_clear(RzFridaPending *pending) {
+RZ_IPI void rz_frida_pending_clear(RZ_NONNULL RZ_BORROW RzFridaPending *pending) {
 	rz_return_if_fail(pending && pending->ids);
 	rz_set_u_clear(pending->ids);
 }
@@ -271,7 +271,7 @@ static void msgbuf_item_free(void *p) {
 	free(message);
 }
 
-RZ_IPI RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity) {
+RZ_IPI RZ_OWN RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity) {
 	RzFridaMsgBuf *buf = RZ_NEW0(RzFridaMsgBuf);
 	if (!buf) {
 		return NULL;
@@ -285,7 +285,7 @@ RZ_IPI RzFridaMsgBuf *rz_frida_msgbuf_new(size_t capacity) {
 	return buf;
 }
 
-RZ_IPI void rz_frida_msgbuf_free(RzFridaMsgBuf *buf) {
+RZ_IPI void rz_frida_msgbuf_free(RZ_NULLABLE RZ_OWN RzFridaMsgBuf *buf) {
 	if (!buf) {
 		return;
 	}
@@ -293,7 +293,7 @@ RZ_IPI void rz_frida_msgbuf_free(RzFridaMsgBuf *buf) {
 	free(buf);
 }
 
-RZ_IPI bool rz_frida_msgbuf_push(RzFridaMsgBuf *buf, RzFridaAgentMessage *message) {
+RZ_IPI bool rz_frida_msgbuf_push(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf, RZ_NONNULL RZ_BORROW RZ_INOUT RzFridaAgentMessage *message) {
 	rz_return_val_if_fail(buf && buf->items && message, false);
 
 	RzFridaAgentMessage *kept = RZ_NEW0(RzFridaAgentMessage);
@@ -315,17 +315,17 @@ RZ_IPI bool rz_frida_msgbuf_push(RzFridaMsgBuf *buf, RzFridaAgentMessage *messag
 	return true;
 }
 
-RZ_IPI size_t rz_frida_msgbuf_count(const RzFridaMsgBuf *buf) {
+RZ_IPI size_t rz_frida_msgbuf_count(RZ_NONNULL const RzFridaMsgBuf *buf) {
 	rz_return_val_if_fail(buf && buf->items, 0);
 	return rz_list_length(buf->items);
 }
 
-RZ_IPI ut64 rz_frida_msgbuf_dropped(const RzFridaMsgBuf *buf) {
+RZ_IPI ut64 rz_frida_msgbuf_dropped(RZ_NONNULL const RzFridaMsgBuf *buf) {
 	rz_return_val_if_fail(buf, 0);
 	return buf->dropped;
 }
 
-RZ_IPI void rz_frida_msgbuf_drain_json(RzFridaMsgBuf *buf, PJ *pj) {
+RZ_IPI void rz_frida_msgbuf_drain_json(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf, RZ_NONNULL RZ_BORROW PJ *pj) {
 	rz_return_if_fail(buf && buf->items && pj);
 
 	pj_ka(pj, "messages");
@@ -339,7 +339,7 @@ RZ_IPI void rz_frida_msgbuf_drain_json(RzFridaMsgBuf *buf, PJ *pj) {
 	rz_frida_msgbuf_clear(buf);
 }
 
-RZ_IPI void rz_frida_msgbuf_clear(RzFridaMsgBuf *buf) {
+RZ_IPI void rz_frida_msgbuf_clear(RZ_NONNULL RZ_BORROW RzFridaMsgBuf *buf) {
 	rz_return_if_fail(buf && buf->items);
 	RzFridaAgentMessage *message;
 	while ((message = rz_list_pop_head(buf->items))) {
