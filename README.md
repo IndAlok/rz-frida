@@ -13,6 +13,8 @@ The plugin provides:
 - structured status and error replies
 - structured device, process, and application enumeration across local, USB, and remote devices when `frida-core` is enabled
 - session control across local, USB, and remote devices when `frida-core` is enabled
+- script execution inside the target through an injected agent when `frida-core` is enabled
+- target memory r/w through the agent when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -57,6 +59,12 @@ fridaoj frida://spawn/usb//com.example.app
 fridaoj frida://attach/remote/127.0.0.1:27042/1234
 fridarj
 fridacj
+fridaij
+fridaej Process.arch
+fridalj hook.js
+fridamj
+fridaxj 0x1000 64
+fridawj 0x1000 deadbeef
 ```
 
 `fridadj`, `fridapj`, `fridaaj`, and `fridaoj` return a structured `frida_unavailable`
@@ -110,6 +118,47 @@ fridaoj frida://attach/remote/127.0.0.1:27042/1234
 
 The remote transport connects to a plain frida-server. TLS and token authenticated
 portals are not wired up.
+
+## Script execution
+
+Once a session is open, the plugin injects a small agent into the target and talks to it
+over a request/response channel. The agent is loaded on first use, so the script cmds
+work directly after `fridaoj` w/o a separate load step.
+
+```
+fridaij
+fridaej Process.arch
+fridalj /path/to/hook.js
+fridamj
+```
+
+`fridaij` pings the agent and returns its ver and the target platform, arch, and
+ptr size, a quick check that the host-agent channel is alive. `fridaej` evals a
+JS expression inside the target and returns its val and type. `fridalj` reads a
+script from a file and evals it same way, for instrumentation too large for the
+cmd line. Each request respects the session timeout and can be interrupted with Ctrl-C.
+
+Not every msg from the agent is a reply. Console o/p, uncaught script errors, and
+unsolicited `send()` notifs are buffered per session in a bounded queue that drops the
+oldest entry when full and counts how many it dropped. `fridamj` drains that buffer as a JSON
+array and clears it. Binary data attached to a `send()` is carried through as base64 with its
+byte length.
+
+## Memory
+
+`fridaxj` reads a block of target memory and returns the bytes as a hex string. `fridawj`
+writes a hex byte string into target memory and returns the number of bytes written. Both
+load the agent on first use, take an addr that rizin evals (so expressions and symbols
+work), and are bounded to 1 MiB per transfer.
+
+```
+fridaxj 0x1000 64
+fridawj 0x1000 deadbeef
+```
+
+The first reads 64 bytes at `0x1000`, the second writes the four bytes `de ad be ef` at
+`0x1000`. A read of unmapped memory comes back as an `internal_error` carrying the agent
+msg, and both cmds report `invalid_target` when no session is open.
 
 ## Install
 

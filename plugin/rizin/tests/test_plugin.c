@@ -23,6 +23,8 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridal"), "fridal command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridai"), "fridai command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridam"), "fridam command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridax"), "fridax command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaw"), "fridaw command is registered");
 	mu_end;
 }
 
@@ -174,6 +176,26 @@ static bool test_messages_without_session(RzCore *core) {
 	mu_end;
 }
 
+static bool test_mem_read_without_session(RzCore *core) {
+	char *read = rz_core_cmd_str(core, "fridaxj 0x1000 16");
+	mu_assert_notnull(read, "memory read command returns output");
+	mu_assert_streq(read,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"memory read without an open session reports the precondition failure");
+	RZ_FREE(read);
+	mu_end;
+}
+
+static bool test_mem_write_without_session(RzCore *core) {
+	char *write = rz_core_cmd_str(core, "fridawj 0x1000 deadbeef");
+	mu_assert_notnull(write, "memory write command returns output");
+	mu_assert_streq(write,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"memory write without an open session reports the precondition failure");
+	RZ_FREE(write);
+	mu_end;
+}
+
 static bool test_invalid_open_uri(RzCore *core) {
 	char *open = rz_core_cmd_str(core, "fridaoj gdb://attach/local//1234");
 	mu_assert_notnull(open, "open command returns output");
@@ -240,6 +262,8 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridal"), "fridal command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridai"), "fridai command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridam"), "fridam command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridax"), "fridax command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaw"), "fridaw command is removed");
 	mu_end;
 }
 
@@ -266,6 +290,8 @@ int all_tests(void) {
 	mu_run_test(test_load_without_session, core);
 	mu_run_test(test_ping_without_session, core);
 	mu_run_test(test_messages_without_session, core);
+	mu_run_test(test_mem_read_without_session, core);
+	mu_run_test(test_mem_write_without_session, core);
 	mu_run_test(test_invalid_open_uri, core);
 	mu_run_test(test_open_command, core);
 	mu_run_test(test_open_usb_command, core);

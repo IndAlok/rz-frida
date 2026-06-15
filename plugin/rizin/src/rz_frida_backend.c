@@ -1017,6 +1017,141 @@ RZ_IPI bool rz_frida_backend_eval(RzFridaSession *session, const char *source, P
 }
 
 /**
+ * \brief Read a block of target memory through the agent.
+ *
+ * Loads the agent on first use, sends a memRead request, and writes an ok:true
+ * envelope carrying the address, byte count, and the bytes as a hex string, or
+ * an ok:false envelope on timeout, cancel, or an agent error. When the plugin
+ * is built without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param address Target address to read from.
+ * \param size Number of bytes to read.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the bytes, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_mem_read(RzFridaSession *session, ut64 address, ut64 size, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	if (size == 0) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "read size must be non-zero");
+		return false;
+	}
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	// addrs can exceed what json num holds, so pass them as txt.
+	char address_str[32];
+	rz_strf(address_str, "0x%" PFMT64x, address);
+	pj_o(params);
+	pj_ks(params, "address", address_str);
+	pj_kn(params, "size", size);
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "memRead", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief Write a block of bytes into target memory through the agent.
+ *
+ * Loads the agent on first use, sends a memWrite request carrying the bytes as
+ * a hex string, and writes an ok:true envelope with the address and byte count,
+ * or an ok:false envelope on timeout, cancel, or an agent error. When the
+ * plugin is built without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param address Target address to write to.
+ * \param bytes Bytes to write.
+ * \param len Number of bytes to write.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent confirmed the write, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_mem_write(RzFridaSession *session, ut64 address, const ut8 *bytes, size_t len, PJ *pj) {
+	rz_return_val_if_fail(session && pj && bytes, false);
+
+	if (len == 0) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no bytes to write");
+		return false;
+	}
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	char *hex = malloc(len * 2 + 1);
+	if (!hex) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	rz_hex_bin2str(bytes, (int)len, hex);
+
+	PJ *params = pj_new();
+	if (!params) {
+		free(hex);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	char address_str[32];
+	rz_strf(address_str, "0x%" PFMT64x, address);
+	pj_o(params);
+	pj_ks(params, "address", address_str);
+	pj_ks(params, "bytes", hex);
+	pj_end(params);
+	free(hex);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "memWrite", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
  * \brief Ping the agent loaded in the target and report what it sees.
  *
  * Loads the agent on first use, sends a ping request, and writes an ok:true

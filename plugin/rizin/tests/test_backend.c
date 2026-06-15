@@ -103,6 +103,37 @@ static bool test_eval_unavailable(void) {
 	mu_end;
 }
 
+static bool test_mem_read_unavailable(void) {
+	RzFridaSession *session = rz_frida_session_new();
+	mu_assert_notnull(session, "allocate session");
+
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	mu_assert_false(rz_frida_backend_mem_read(session, 0x1000, 16, pj), "memory read fails without frida-core");
+	mu_assert_streq(pj_string(pj),
+		"{\"ok\":false,\"error\":{\"code\":\"frida_unavailable\",\"message\":\"frida-core support is not enabled\"}}",
+		"frida-less backend reports the feature as unavailable");
+	pj_free(pj);
+	rz_frida_session_free(session);
+	mu_end;
+}
+
+static bool test_mem_write_unavailable(void) {
+	RzFridaSession *session = rz_frida_session_new();
+	mu_assert_notnull(session, "allocate session");
+
+	const ut8 bytes[] = { 0xde, 0xad, 0xbe, 0xef };
+	PJ *pj = pj_new();
+	mu_assert_notnull(pj, "allocate json builder");
+	mu_assert_false(rz_frida_backend_mem_write(session, 0x1000, bytes, sizeof(bytes), pj), "memory write fails without frida-core");
+	mu_assert_streq(pj_string(pj),
+		"{\"ok\":false,\"error\":{\"code\":\"frida_unavailable\",\"message\":\"frida-core support is not enabled\"}}",
+		"frida-less backend reports the feature as unavailable");
+	pj_free(pj);
+	rz_frida_session_free(session);
+	mu_end;
+}
+
 static bool test_ping_unavailable(void) {
 	RzFridaSession *session = rz_frida_session_new();
 	mu_assert_notnull(session, "allocate session");
@@ -141,6 +172,8 @@ int all_tests(void) {
 	mu_run_test(test_resume_unavailable);
 	mu_run_test(test_close_unavailable);
 	mu_run_test(test_eval_unavailable);
+	mu_run_test(test_mem_read_unavailable);
+	mu_run_test(test_mem_write_unavailable);
 	mu_run_test(test_ping_unavailable);
 	mu_run_test(test_messages_unavailable);
 	return tests_passed != tests_run;

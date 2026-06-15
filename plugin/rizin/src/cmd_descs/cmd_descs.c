@@ -13,13 +13,17 @@ static const RzCmdDescDetail cmd_fridaa_details[2];
 static const RzCmdDescDetail cmd_fridao_details[2];
 static const RzCmdDescDetail cmd_fridae_details[2];
 static const RzCmdDescDetail cmd_fridal_details[2];
-static const RzCmdDescDetail cmd_frida_details[8];
+static const RzCmdDescDetail cmd_fridax_details[2];
+static const RzCmdDescDetail cmd_fridaw_details[2];
+static const RzCmdDescDetail cmd_frida_details[9];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
 static const RzCmdDescArg cmd_fridaa_args[2];
 static const RzCmdDescArg cmd_fridao_args[2];
 static const RzCmdDescArg cmd_fridae_args[2];
 static const RzCmdDescArg cmd_fridal_args[2];
+static const RzCmdDescArg cmd_fridax_args[3];
+static const RzCmdDescArg cmd_fridaw_args[3];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -66,6 +70,12 @@ static const RzCmdDescDetailEntry cmd_frida_Script_space_execution_detail_entrie
 	{ .text = "fridamj", .arg_str = NULL, .comment = "Read buffered agent log, error, and send messages" },
 	{ 0 },
 };
+
+static const RzCmdDescDetailEntry cmd_frida_Memory_space_access_detail_entries[] = {
+	{ .text = "fridaxj ", .arg_str = "0x1000 64", .comment = "Read 64 bytes of target memory as hex" },
+	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write four bytes into target memory" },
+	{ 0 },
+};
 static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session status", .entries = cmd_frida_Session_space_status_detail_entries },
 	{ .name = "URI grammar", .entries = cmd_frida_URI_space_grammar_detail_entries },
@@ -74,6 +84,7 @@ static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Application listing", .entries = cmd_frida_Application_space_listing_detail_entries },
 	{ .name = "Session control", .entries = cmd_frida_Session_space_control_detail_entries },
 	{ .name = "Script execution", .entries = cmd_frida_Script_space_execution_detail_entries },
+	{ .name = "Memory access", .entries = cmd_frida_Memory_space_access_detail_entries },
 	{ 0 },
 };
 static const RzCmdDescHelp cmd_frida_help = {
@@ -301,6 +312,63 @@ static const RzCmdDescHelp cmd_fridam_help = {
 	.args = cmd_fridam_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridax_Examples_detail_entries[] = {
+	{ .text = "fridaxj ", .arg_str = "0x1000 64", .comment = "Read 64 bytes at 0x1000 from the target process" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridax_details[] = {
+	{ .name = "Examples", .entries = cmd_fridax_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridax_args[] = {
+	{
+		.name = "address",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+
+	},
+	{
+		.name = "size",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridax_help = {
+	.summary = "Read target memory",
+	.description = "Reads a block of memory from the target process through the rz-frida agent and returns the bytes as a hex string. Loads the agent into the open session on first use.",
+	.details = cmd_fridax_details,
+	.args = cmd_fridax_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaw_Examples_detail_entries[] = {
+	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write the bytes de ad be ef at 0x1000 in the target" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaw_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaw_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaw_args[] = {
+	{
+		.name = "address",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+
+	},
+	{
+		.name = "bytes",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaw_help = {
+	.summary = "Write target memory",
+	.description = "Writes a hex byte string into the target process memory through the rz-frida agent and returns the number of bytes written. Loads the agent into the open session on first use.",
+	.details = cmd_fridaw_details,
+	.args = cmd_fridaw_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -342,5 +410,11 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridam_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridam", RZ_OUTPUT_MODE_JSON, rz_cmd_fridam_handler, &cmd_fridam_help);
 	rz_warn_if_fail(cmd_fridam_cd);
+
+	RzCmdDesc *cmd_fridax_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridax", RZ_OUTPUT_MODE_JSON, rz_cmd_fridax_handler, &cmd_fridax_help);
+	rz_warn_if_fail(cmd_fridax_cd);
+
+	RzCmdDesc *cmd_fridaw_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaw", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaw_handler, &cmd_fridaw_help);
+	rz_warn_if_fail(cmd_fridaw_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

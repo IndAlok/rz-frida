@@ -70,6 +70,14 @@ commands:
             comment: "Load and evaluate a JavaScript file in the target process"
           - text: "fridamj"
             comment: "Read buffered agent log, error, and send messages"
+      - name: "Memory access"
+        entries:
+          - text: "fridaxj "
+            arg_str: "0x1000 64"
+            comment: "Read 64 bytes of target memory as hex"
+          - text: "fridawj "
+            arg_str: "0x1000 deadbeef"
+            comment: "Write four bytes into target memory"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -306,3 +314,45 @@ commands:
         modes:
           - RZ_OUTPUT_MODE_JSON
         args: []
+      - name: fridax
+        cname: cmd_fridax
+        summary: "Read target memory"
+        description: >
+          Reads a block of memory from the target process through the rz-frida
+          agent and returns the bytes as a hex string. Loads the agent into the
+          open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+          - name: size
+            type: RZ_CMD_ARG_TYPE_NUM
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaxj "
+                arg_str: "0x1000 64"
+                comment: "Read 64 bytes at 0x1000 from the target process"
+      - name: fridaw
+        cname: cmd_fridaw
+        summary: "Write target memory"
+        description: >
+          Writes a hex byte string into the target process memory through the
+          rz-frida agent and returns the number of bytes written. Loads the
+          agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+          - name: bytes
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridawj "
+                arg_str: "0x1000 deadbeef"
+                comment: "Write the bytes de ad be ef at 0x1000 in the target"

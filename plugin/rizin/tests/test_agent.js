@@ -21,12 +21,44 @@ const source = fs.readFileSync(agentPath, 'utf8');
 const sent = [];
 let pendingRecv = null;
 
+// fake target memory region, backs a known byte pattern at MEM_BASE, addressed through ptr().
+const MEM_BASE = 0x1000;
+const memory = new Uint8Array(256);
+for (let i = 0; i < memory.length; i++) {
+	memory[i] = i;
+}
+function FakePtr(value) {
+	this.value = (typeof value === 'string') ? Number(value) : value;
+}
+FakePtr.prototype.toString = function () {
+	return '0x' + this.value.toString(16);
+};
+
 const sandbox = {
 	Process: { platform: 'linux', arch: 'x64', pointerSize: 8 },
 	recv: function (cb) { pendingRecv = cb; },
 	// frida marshals send() to json over the wire, so capture that form (it also
 	// drops vm realm prototype, letting deepStrictEqual compare plain objs).
 	send: function (message, data) { sent.push({ message: JSON.parse(JSON.stringify(message)), data: data }); },
+	ptr: function (value) { return new FakePtr(value); },
+	Memory: {
+		readByteArray: function (p, size) {
+			const off = p.value - MEM_BASE;
+			if (off < 0 || off + size > memory.length) {
+				return null;
+			}
+			return memory.slice(off, off + size).buffer;
+		},
+		writeByteArray: function (p, bytes) {
+			const off = p.value - MEM_BASE;
+			if (off < 0 || off + bytes.length > memory.length) {
+				throw new Error('access violation');
+			}
+			for (let i = 0; i < bytes.length; i++) {
+				memory[off + i] = bytes[i];
+			}
+		}
+	},
 	rpc: {},
 	console: console
 };
@@ -86,5 +118,43 @@ assert.strictEqual(roundtrip({ type: 'ping' }), null, 'a request without an id d
 assert.deepStrictEqual(JSON.parse(JSON.stringify(sandbox.rpc.exports.ping())),
 	{ version: 1, platform: 'linux', arch: 'x64', pointerSize: 8 },
 	'rpc.exports.ping returns the agent info');
+
+assert.deepStrictEqual(roundtrip({ id: 9, type: 'memRead', params: { address: '0x1000', size: 4 } }),
+	{ id: 9, ok: true, result: { address: '0x1000', size: 4, bytes: '00010203' } },
+	'memRead returns the requested bytes as hex');
+
+assert.deepStrictEqual(roundtrip({ id: 10, type: 'memRead', params: { address: 0x1004, size: 2 } }),
+	{ id: 10, ok: true, result: { address: '0x1004', size: 2, bytes: '0405' } },
+	'memRead accepts a numeric address');
+
+const readOob = roundtrip({ id: 11, type: 'memRead', params: { address: '0x1000', size: 4096 } });
+assert.strictEqual(readOob.ok, false, 'an unreadable range is rejected');
+assert.ok(/cannot read/.test(readOob.error), 'the unreadable range is reported');
+
+const readNoAddr = roundtrip({ id: 12, type: 'memRead', params: { size: 4 } });
+assert.strictEqual(readNoAddr.error, 'memRead requires an address', 'a missing address is rejected');
+
+const readBadSize = roundtrip({ id: 13, type: 'memRead', params: { address: '0x1000', size: 0 } });
+assert.strictEqual(readBadSize.error, 'memRead requires a positive integer size', 'a non-positive size is rejected');
+
+const readOverCap = roundtrip({ id: 14, type: 'memRead', params: { address: '0x1000', size: 0x100001 } });
+assert.ok(/byte limit/.test(readOverCap.error), 'a size past the limit is rejected');
+
+assert.deepStrictEqual(roundtrip({ id: 15, type: 'memWrite', params: { address: '0x1010', bytes: 'deadbeef' } }),
+	{ id: 15, ok: true, result: { address: '0x1010', size: 4 } },
+	'memWrite reports the number of bytes written');
+
+assert.deepStrictEqual(roundtrip({ id: 16, type: 'memRead', params: { address: '0x1010', size: 4 } }),
+	{ id: 16, ok: true, result: { address: '0x1010', size: 4, bytes: 'deadbeef' } },
+	'memRead sees the bytes memWrite stored');
+
+const writeOddHex = roundtrip({ id: 17, type: 'memWrite', params: { address: '0x1010', bytes: 'abc' } });
+assert.strictEqual(writeOddHex.error, 'hex input must have an even length', 'odd-length hex is rejected');
+
+const writeBadHex = roundtrip({ id: 18, type: 'memWrite', params: { address: '0x1010', bytes: 'zz' } });
+assert.strictEqual(writeBadHex.error, 'hex input has a non-hex character', 'non-hex input is rejected');
+
+const writeOob = roundtrip({ id: 19, type: 'memWrite', params: { address: '0x10f8', bytes: 'deadbeefdeadbeefdeadbeef' } });
+assert.strictEqual(writeOob.ok, false, 'a write past the region is rejected');
 
 console.log('ok - agent script protocol');
