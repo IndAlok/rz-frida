@@ -3,6 +3,8 @@
 const RZ_FRIDA_AGENT_VERSION = 1;
 const RZ_FRIDA_MAX_BYTES = 0x100000;
 
+let rangeCache = null;
+
 function agentInfo() {
   return {
     version: RZ_FRIDA_AGENT_VERSION,
@@ -71,6 +73,39 @@ function memWrite(params) {
   return { address: addr.toString(), size: bytes.length };
 }
 
+function enumerateRanges() {
+  return Process.enumerateRanges('---').map(function (range) {
+    const out = { base: range.base.toString(), size: range.size, protection: range.protection };
+    if (range.file) {
+      out.file = { path: range.file.path, offset: range.file.offset, size: range.file.size };
+    }
+    return out;
+  });
+}
+
+function ranges(params) {
+  const refresh = !!(params && params.refresh);
+  const cached = !refresh && rangeCache !== null;
+  if (!cached) {
+    rangeCache = enumerateRanges();
+  }
+  return { ranges: rangeCache, cached: cached };
+}
+
+function enumerateThreads() {
+  return Process.enumerateThreads().map(function (thread) {
+    return { id: thread.id, state: thread.state };
+  });
+}
+
+function threads() {
+  return { threads: enumerateThreads() };
+}
+
+function invalidateCaches() {
+  rangeCache = null;
+}
+
 function handleRequest(request) {
   const type = request.type;
   const params = request.params || {};
@@ -84,12 +119,17 @@ function handleRequest(request) {
       }
       // keeps snippet global
       const value = (0, eval)(source);
+      invalidateCaches();
       return { value: value === undefined ? null : value, type: typeof value };
     }
     case 'memRead':
       return memRead(params);
     case 'memWrite':
       return memWrite(params);
+    case 'ranges':
+      return ranges(params);
+    case 'threads':
+      return threads();
     default:
       throw new Error('unknown request type: ' + String(type));
   }

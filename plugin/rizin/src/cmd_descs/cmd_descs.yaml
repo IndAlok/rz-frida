@@ -78,6 +78,12 @@ commands:
           - text: "fridawj "
             arg_str: "0x1000 deadbeef"
             comment: "Write four bytes into target memory"
+      - name: "Runtime info"
+        entries:
+          - text: "fridaRj"
+            comment: "List the target memory ranges"
+          - text: "fridatj"
+            comment: "List the target threads"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -356,3 +362,38 @@ commands:
               - text: "fridawj "
                 arg_str: "0x1000 deadbeef"
                 comment: "Write the bytes de ad be ef at 0x1000 in the target"
+      - name: fridaR
+        cname: cmd_fridaR
+        summary: "List target memory ranges"
+        description: >
+          Lists the memory ranges of the target process through the rz-frida
+          agent, each with its base, size, protection, and backing file when
+          mapped. The agent caches the list and re-enumerates it after code runs
+          in the target, pass any argument to force a fresh enumeration. Loads
+          the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: refresh
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaRj"
+                comment: "List the cached target memory ranges"
+              - text: "fridaRj "
+                arg_str: "refresh"
+                comment: "Re-enumerate the ranges instead of using the cache"
+      - name: fridat
+        cname: cmd_fridat
+        summary: "List target threads"
+        description: >
+          Lists the threads of the target process through the rz-frida agent,
+          each with its id and state. Loads the agent into the open session on
+          first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []

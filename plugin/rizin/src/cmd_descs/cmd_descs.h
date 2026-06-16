@@ -38,6 +38,10 @@ RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RzCore *core, int argc, const char **ar
 RZ_IPI RzCmdStatus rz_cmd_fridax_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state);
 // "fridaw"
 RZ_IPI RzCmdStatus rz_cmd_fridaw_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state);
+// "fridaR"
+RZ_IPI RzCmdStatus rz_cmd_fridaR_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state);
+// "fridat"
+RZ_IPI RzCmdStatus rz_cmd_fridat_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state);
 
 // Main function that initialize the entire commands tree
 RZ_IPI void rzshell_cmddescs_init(RzCore *core);

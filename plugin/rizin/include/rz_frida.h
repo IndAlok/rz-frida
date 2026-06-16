@@ -223,6 +223,8 @@ RZ_IPI bool rz_frida_backend_close(RZ_NONNULL RzFridaSession *session, RZ_NONNUL
 RZ_IPI bool rz_frida_backend_eval(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *source, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_mem_read(RZ_NONNULL RzFridaSession *session, ut64 address, ut64 size, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_mem_write(RZ_NONNULL RzFridaSession *session, ut64 address, RZ_NONNULL const ut8 *bytes, size_t len, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_ranges(RZ_NONNULL RzFridaSession *session, bool refresh, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_threads(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj);
 

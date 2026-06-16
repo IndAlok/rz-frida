@@ -34,8 +34,25 @@ FakePtr.prototype.toString = function () {
 	return '0x' + this.value.toString(16);
 };
 
+// fake ranges and threads for enumerations, counter for range cache to be checked.
+let rangesEnumerated = 0;
+const fakeRanges = [
+	{ base: new FakePtr(0x1000), size: 0x1000, protection: 'r-x', file: { path: '/bin/app', offset: 0, size: 0x1000 } },
+	{ base: new FakePtr(0x8000), size: 0x2000, protection: 'rw-' }
+];
+const fakeThreads = [
+	{ id: 1, state: 'waiting' },
+	{ id: 2, state: 'running' }
+];
+
 const sandbox = {
-	Process: { platform: 'linux', arch: 'x64', pointerSize: 8 },
+	Process: {
+		platform: 'linux',
+		arch: 'x64',
+		pointerSize: 8,
+		enumerateRanges: function () { rangesEnumerated++; return fakeRanges; },
+		enumerateThreads: function () { return fakeThreads; }
+	},
 	recv: function (cb) { pendingRecv = cb; },
 	// frida marshals send() to json over the wire, so capture that form (it also
 	// drops vm realm prototype, letting deepStrictEqual compare plain objs).
@@ -156,5 +173,24 @@ assert.strictEqual(writeBadHex.error, 'hex input has a non-hex character', 'non-
 
 const writeOob = roundtrip({ id: 19, type: 'memWrite', params: { address: '0x10f8', bytes: 'deadbeefdeadbeefdeadbeef' } });
 assert.strictEqual(writeOob.ok, false, 'a write past the region is rejected');
+
+const firstRanges = roundtrip({ id: 20, type: 'ranges' });
+assert.strictEqual(firstRanges.result.cached, false, 'the first ranges call enumerates');
+assert.deepStrictEqual(firstRanges.result.ranges, [
+	{ base: '0x1000', size: 0x1000, protection: 'r-x', file: { path: '/bin/app', offset: 0, size: 0x1000 } },
+	{ base: '0x8000', size: 0x2000, protection: 'rw-' }
+], 'ranges returns the mapped range details');
+
+assert.strictEqual(roundtrip({ id: 21, type: 'ranges' }).result.cached, true, 'a second call serves the cache');
+assert.strictEqual(roundtrip({ id: 22, type: 'ranges', params: { refresh: true } }).result.cached, false, 'refresh re-enumerates');
+assert.strictEqual(roundtrip({ id: 23, type: 'ranges' }).result.cached, true, 'the refreshed list is cached again');
+
+roundtrip({ id: 24, type: 'eval', params: { source: '1 + 1' } });
+assert.strictEqual(roundtrip({ id: 25, type: 'ranges' }).result.cached, false, 'running code drops the cached ranges');
+assert.strictEqual(rangesEnumerated, 3, 'the cache avoided redundant enumeration');
+
+assert.deepStrictEqual(roundtrip({ id: 26, type: 'threads' }),
+	{ id: 26, ok: true, result: { threads: [{ id: 1, state: 'waiting' }, { id: 2, state: 'running' }] } },
+	'threads returns each thread id and state');
 
 console.log('ok - agent script protocol');

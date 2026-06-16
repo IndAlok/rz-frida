@@ -15,7 +15,8 @@ static const RzCmdDescDetail cmd_fridae_details[2];
 static const RzCmdDescDetail cmd_fridal_details[2];
 static const RzCmdDescDetail cmd_fridax_details[2];
 static const RzCmdDescDetail cmd_fridaw_details[2];
-static const RzCmdDescDetail cmd_frida_details[9];
+static const RzCmdDescDetail cmd_fridaR_details[2];
+static const RzCmdDescDetail cmd_frida_details[10];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
 static const RzCmdDescArg cmd_fridaa_args[2];
@@ -24,6 +25,7 @@ static const RzCmdDescArg cmd_fridae_args[2];
 static const RzCmdDescArg cmd_fridal_args[2];
 static const RzCmdDescArg cmd_fridax_args[3];
 static const RzCmdDescArg cmd_fridaw_args[3];
+static const RzCmdDescArg cmd_fridaR_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -76,6 +78,12 @@ static const RzCmdDescDetailEntry cmd_frida_Memory_space_access_detail_entries[]
 	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write four bytes into target memory" },
 	{ 0 },
 };
+
+static const RzCmdDescDetailEntry cmd_frida_Runtime_space_info_detail_entries[] = {
+	{ .text = "fridaRj", .arg_str = NULL, .comment = "List the target memory ranges" },
+	{ .text = "fridatj", .arg_str = NULL, .comment = "List the target threads" },
+	{ 0 },
+};
 static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session status", .entries = cmd_frida_Session_space_status_detail_entries },
 	{ .name = "URI grammar", .entries = cmd_frida_URI_space_grammar_detail_entries },
@@ -85,6 +93,7 @@ static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session control", .entries = cmd_frida_Session_space_control_detail_entries },
 	{ .name = "Script execution", .entries = cmd_frida_Script_space_execution_detail_entries },
 	{ .name = "Memory access", .entries = cmd_frida_Memory_space_access_detail_entries },
+	{ .name = "Runtime info", .entries = cmd_frida_Runtime_space_info_detail_entries },
 	{ 0 },
 };
 static const RzCmdDescHelp cmd_frida_help = {
@@ -369,6 +378,41 @@ static const RzCmdDescHelp cmd_fridaw_help = {
 	.args = cmd_fridaw_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridaR_Examples_detail_entries[] = {
+	{ .text = "fridaRj", .arg_str = NULL, .comment = "List the cached target memory ranges" },
+	{ .text = "fridaRj ", .arg_str = "refresh", .comment = "Re-enumerate the ranges instead of using the cache" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaR_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaR_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaR_args[] = {
+	{
+		.name = "refresh",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaR_help = {
+	.summary = "List target memory ranges",
+	.description = "Lists the memory ranges of the target process through the rz-frida agent, each with its base, size, protection, and backing file when mapped. The agent caches the list and re-enumerates it after code runs in the target, pass any argument to force a fresh enumeration. Loads the agent into the open session on first use.",
+	.details = cmd_fridaR_details,
+	.args = cmd_fridaR_args,
+};
+
+static const RzCmdDescArg cmd_fridat_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridat_help = {
+	.summary = "List target threads",
+	.description = "Lists the threads of the target process through the rz-frida agent, each with its id and state. Loads the agent into the open session on first use.",
+	.args = cmd_fridat_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -416,5 +460,11 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridaw_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaw", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaw_handler, &cmd_fridaw_help);
 	rz_warn_if_fail(cmd_fridaw_cd);
+
+	RzCmdDesc *cmd_fridaR_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaR", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaR_handler, &cmd_fridaR_help);
+	rz_warn_if_fail(cmd_fridaR_cd);
+
+	RzCmdDesc *cmd_fridat_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridat", RZ_OUTPUT_MODE_JSON, rz_cmd_fridat_handler, &cmd_fridat_help);
+	rz_warn_if_fail(cmd_fridat_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

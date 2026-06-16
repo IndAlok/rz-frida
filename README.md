@@ -15,6 +15,7 @@ The plugin provides:
 - session control across local, USB, and remote devices when `frida-core` is enabled
 - script execution inside the target through an injected agent when `frida-core` is enabled
 - target memory r/w through the agent when `frida-core` is enabled
+- target memory range and thread listing through the agent when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -65,6 +66,8 @@ fridalj hook.js
 fridamj
 fridaxj 0x1000 64
 fridawj 0x1000 deadbeef
+fridaRj
+fridatj
 ```
 
 `fridadj`, `fridapj`, `fridaaj`, and `fridaoj` return a structured `frida_unavailable`
@@ -159,6 +162,22 @@ fridawj 0x1000 deadbeef
 The first reads 64 bytes at `0x1000`, the second writes the four bytes `de ad be ef` at
 `0x1000`. A read of unmapped memory comes back as an `internal_error` carrying the agent
 msg, and both cmds report `invalid_target` when no session is open.
+
+## Runtime info
+
+`fridaRj` lists the target memory ranges, each with its base, size, protection, and backing
+file when mapped. `fridatj` lists the target threads with their id and state. Both load the
+agent on first use.
+
+```
+fridaRj
+fridatj
+```
+
+The agent caches the range list and re-enumerates after code runs in the target (`fridaej` or
+`fridalj`), so listing stays current w/o re-scanning on every call. The reply's
+`cached` flag says whether it came from the cache, and passing any arg to `fridaRj`
+forces a fresh enumeration.
 
 ## Install
 
