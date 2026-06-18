@@ -1,9 +1,9 @@
 'use strict';
 
 const RZ_FRIDA_AGENT_VERSION = 1;
-const RZ_FRIDA_MAX_BYTES = 0x100000;
 
 let rangeCache = null;
+let moduleCache = null;
 
 function agentInfo() {
   return {
@@ -45,11 +45,9 @@ function memRead(params) {
   if (typeof size !== 'number' || !Number.isInteger(size) || size <= 0) {
     throw new Error('memRead requires a positive integer size');
   }
-  if (size > RZ_FRIDA_MAX_BYTES) {
-    throw new Error('size exceeds the ' + RZ_FRIDA_MAX_BYTES + ' byte limit');
-  }
   const addr = ptr(params.address);
-  const buffer = Memory.readByteArray(addr, size);
+  requireMapped(addr);
+  const buffer = addr.readByteArray(size);
   if (buffer === null) {
     throw new Error('cannot read ' + size + ' bytes at ' + addr);
   }
@@ -65,11 +63,9 @@ function memWrite(params) {
     throw new Error('memWrite requires a hex byte string');
   }
   const bytes = fromHex(params.bytes);
-  if (bytes.length > RZ_FRIDA_MAX_BYTES) {
-    throw new Error('size exceeds the ' + RZ_FRIDA_MAX_BYTES + ' byte limit');
-  }
   const addr = ptr(params.address);
-  Memory.writeByteArray(addr, bytes);
+  requireMapped(addr);
+  addr.writeByteArray(bytes);
   return { address: addr.toString(), size: bytes.length };
 }
 
@@ -83,6 +79,31 @@ function enumerateRanges() {
   });
 }
 
+function rangeContaining(addr) {
+  for (let i = 0; i < rangeCache.length; i++) {
+    const range = rangeCache[i];
+    const base = ptr(range.base);
+    if (addr.compare(base) >= 0 && addr.compare(base.add(range.size)) < 0) {
+      return range;
+    }
+  }
+  return null;
+}
+
+// reject an addr no mapped range backs, refreshing once in case target
+// mapped it after cache was filled.
+function requireMapped(addr) {
+  if (rangeCache === null) {
+    rangeCache = enumerateRanges();
+  }
+  if (rangeContaining(addr) === null) {
+    rangeCache = enumerateRanges();
+    if (rangeContaining(addr) === null) {
+      throw new Error('address ' + addr + ' is not mapped in the target');
+    }
+  }
+}
+
 function ranges(params) {
   const refresh = !!(params && params.refresh);
   const cached = !refresh && rangeCache !== null;
@@ -92,9 +113,18 @@ function ranges(params) {
   return { ranges: rangeCache, cached: cached };
 }
 
+// json copy of a frida detail object, every NativePointer becomes a hex str.
+function serialize(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function enumerateThreads() {
   return Process.enumerateThreads().map(function (thread) {
-    return { id: thread.id, state: thread.state };
+    const out = { id: thread.id, state: thread.state, context: serialize(thread.context) };
+    if (thread.entrypoint) {
+      out.entrypoint = serialize(thread.entrypoint);
+    }
+    return out;
   });
 }
 
@@ -102,8 +132,47 @@ function threads() {
   return { threads: enumerateThreads() };
 }
 
+function enumerateModules() {
+  return Process.enumerateModules().map(function (module) {
+    return { name: module.name, base: module.base.toString(), size: module.size, path: module.path };
+  });
+}
+
+function modules(params) {
+  const refresh = !!(params && params.refresh);
+  const cached = !refresh && moduleCache !== null;
+  if (!cached) {
+    moduleCache = enumerateModules();
+  }
+  return { modules: moduleCache, cached: cached };
+}
+
+function moduleByName(name) {
+  const list = Process.enumerateModules();
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].name === name) {
+      return list[i];
+    }
+  }
+  throw new Error('no module named ' + name);
+}
+
+function moduleListing(type, params) {
+  if (typeof params.module !== 'string' || params.module.length === 0) {
+    throw new Error(type + ' requires a module name');
+  }
+  const module = moduleByName(params.module);
+  const items = (type === 'imports') ? module.enumerateImports()
+    : (type === 'symbols') ? module.enumerateSymbols()
+      : module.enumerateExports();
+  const result = { module: params.module };
+  result[type] = serialize(items || []);
+  return result;
+}
+
 function invalidateCaches() {
   rangeCache = null;
+  moduleCache = null;
 }
 
 function handleRequest(request) {
@@ -130,6 +199,14 @@ function handleRequest(request) {
       return ranges(params);
     case 'threads':
       return threads();
+    case 'modules':
+      return modules(params);
+    case 'exports':
+      return moduleListing('exports', params);
+    case 'imports':
+      return moduleListing('imports', params);
+    case 'symbols':
+      return moduleListing('symbols', params);
     default:
       throw new Error('unknown request type: ' + String(type));
   }

@@ -9,6 +9,7 @@
 
 #define RZ_FRIDA_DEFAULT_TIMEOUT_MS 5000
 #define RZ_FRIDA_MSGBUF_CAPACITY 256
+#define RZ_FRIDA_MEM_MAX_DEFAULT 0x100000
 
 /**
  * \brief URI operation requested by the frontend or command layer.
@@ -225,6 +226,10 @@ RZ_IPI bool rz_frida_backend_mem_read(RZ_NONNULL RzFridaSession *session, ut64 a
 RZ_IPI bool rz_frida_backend_mem_write(RZ_NONNULL RzFridaSession *session, ut64 address, RZ_NONNULL const ut8 *bytes, size_t len, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_ranges(RZ_NONNULL RzFridaSession *session, bool refresh, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_threads(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_modules(RZ_NONNULL RzFridaSession *session, bool refresh, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_exports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_imports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_symbols(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj);
 

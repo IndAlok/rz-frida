@@ -27,6 +27,40 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaw"), "fridaw command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaR"), "fridaR command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridat"), "fridat command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaM"), "fridaM command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaE"), "fridaE command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaI"), "fridaI command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaS"), "fridaS command is registered");
+	mu_end;
+}
+
+static bool test_config_defaults(RzCore *core) {
+	mu_assert_true(rz_config_get_i(core->config, "frida.mem.max") == RZ_FRIDA_MEM_MAX_DEFAULT, "frida.mem.max default is registered");
+	mu_assert_true(rz_config_get_i(core->config, "frida.timeout") == RZ_FRIDA_DEFAULT_TIMEOUT_MS, "frida.timeout default is registered");
+	mu_end;
+}
+
+static bool test_mem_read_size_limit(RzCore *core) {
+	rz_config_set_i(core->config, "frida.mem.max", 8);
+	char *read = rz_core_cmd_str(core, "fridaxj 0x1000 16");
+	rz_config_set_i(core->config, "frida.mem.max", RZ_FRIDA_MEM_MAX_DEFAULT);
+	mu_assert_notnull(read, "memory read command returns output");
+	mu_assert_streq(read,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"read size exceeds the frida.mem.max limit\"}}\n",
+		"a read larger than frida.mem.max is rejected");
+	RZ_FREE(read);
+	mu_end;
+}
+
+static bool test_mem_write_size_limit(RzCore *core) {
+	rz_config_set_i(core->config, "frida.mem.max", 2);
+	char *write = rz_core_cmd_str(core, "fridawj 0x1000 deadbeef");
+	rz_config_set_i(core->config, "frida.mem.max", RZ_FRIDA_MEM_MAX_DEFAULT);
+	mu_assert_notnull(write, "memory write command returns output");
+	mu_assert_streq(write,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"write size exceeds the frida.mem.max limit\"}}\n",
+		"a write larger than frida.mem.max is rejected");
+	RZ_FREE(write);
 	mu_end;
 }
 
@@ -218,6 +252,46 @@ static bool test_threads_without_session(RzCore *core) {
 	mu_end;
 }
 
+static bool test_modules_without_session(RzCore *core) {
+	char *modules = rz_core_cmd_str(core, "fridaMj");
+	mu_assert_notnull(modules, "modules command returns output");
+	mu_assert_streq(modules,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"modules without an open session reports the precondition failure");
+	RZ_FREE(modules);
+	mu_end;
+}
+
+static bool test_exports_without_session(RzCore *core) {
+	char *exports = rz_core_cmd_str(core, "fridaEj libc.so");
+	mu_assert_notnull(exports, "exports command returns output");
+	mu_assert_streq(exports,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"exports without an open session reports the precondition failure");
+	RZ_FREE(exports);
+	mu_end;
+}
+
+static bool test_imports_without_session(RzCore *core) {
+	char *imports = rz_core_cmd_str(core, "fridaIj libc.so");
+	mu_assert_notnull(imports, "imports command returns output");
+	mu_assert_streq(imports,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"imports without an open session reports the precondition failure");
+	RZ_FREE(imports);
+	mu_end;
+}
+
+static bool test_symbols_without_session(RzCore *core) {
+	char *symbols = rz_core_cmd_str(core, "fridaSj libc.so");
+	mu_assert_notnull(symbols, "symbols command returns output");
+	mu_assert_streq(symbols,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"symbols without an open session reports the precondition failure");
+	RZ_FREE(symbols);
+	mu_end;
+}
+
 static bool test_invalid_open_uri(RzCore *core) {
 	char *open = rz_core_cmd_str(core, "fridaoj gdb://attach/local//1234");
 	mu_assert_notnull(open, "open command returns output");
@@ -288,6 +362,10 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaw"), "fridaw command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaR"), "fridaR command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridat"), "fridat command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaM"), "fridaM command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaE"), "fridaE command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaI"), "fridaI command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaS"), "fridaS command is removed");
 	mu_end;
 }
 
@@ -299,6 +377,9 @@ int all_tests(void) {
 	}
 
 	mu_run_test(test_plugin_registration, core);
+	mu_run_test(test_config_defaults, core);
+	mu_run_test(test_mem_read_size_limit, core);
+	mu_run_test(test_mem_write_size_limit, core);
 	mu_run_test(test_status_command, core);
 	mu_run_test(test_uri_command, core);
 	mu_run_test(test_invalid_uri_command, core);
@@ -318,6 +399,10 @@ int all_tests(void) {
 	mu_run_test(test_mem_write_without_session, core);
 	mu_run_test(test_ranges_without_session, core);
 	mu_run_test(test_threads_without_session, core);
+	mu_run_test(test_modules_without_session, core);
+	mu_run_test(test_exports_without_session, core);
+	mu_run_test(test_imports_without_session, core);
+	mu_run_test(test_symbols_without_session, core);
 	mu_run_test(test_invalid_open_uri, core);
 	mu_run_test(test_open_command, core);
 	mu_run_test(test_open_usb_command, core);

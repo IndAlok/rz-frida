@@ -16,6 +16,7 @@ The plugin provides:
 - script execution inside the target through an injected agent when `frida-core` is enabled
 - target memory r/w through the agent when `frida-core` is enabled
 - target memory range and thread listing through the agent when `frida-core` is enabled
+- target module, export, import, and sym listing through the agent when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -68,6 +69,10 @@ fridaxj 0x1000 64
 fridawj 0x1000 deadbeef
 fridaRj
 fridatj
+fridaMj
+fridaEj libc.so
+fridaIj libc.so
+fridaSj libc.so
 ```
 
 `fridadj`, `fridapj`, `fridaaj`, and `fridaoj` return a structured `frida_unavailable`
@@ -152,7 +157,7 @@ byte length.
 `fridaxj` reads a block of target memory and returns the bytes as a hex string. `fridawj`
 writes a hex byte string into target memory and returns the number of bytes written. Both
 load the agent on first use, take an addr that rizin evals (so expressions and symbols
-work), and are bounded to 1 MiB per transfer.
+work), and are bounded by the `frida.mem.max` config.
 
 ```
 fridaxj 0x1000 64
@@ -160,24 +165,42 @@ fridawj 0x1000 deadbeef
 ```
 
 The first reads 64 bytes at `0x1000`, the second writes the four bytes `de ad be ef` at
-`0x1000`. A read of unmapped memory comes back as an `internal_error` carrying the agent
-msg, and both cmds report `invalid_target` when no session is open.
+`0x1000`. The agent validates the address against the mapped ranges first, so a r/w
+of unmapped mem comes back as an `internal_error`, and both cmds report `invalid_target`
+when no session is open.
 
 ## Runtime info
 
 `fridaRj` lists the target memory ranges, each with its base, size, protection, and backing
-file when mapped. `fridatj` lists the target threads with their id and state. Both load the
-agent on first use.
+file when mapped. `fridatj` lists target threads, each with its id, state, register
+context, and entrypoint. `fridaMj` lists loaded modules with their name, base, size, and
+path. `fridaEj <module>`, `fridaIj <module>`, and `fridaSj <module>` list a module's exports,
+imports, and symbols. All load the agent on first use.
 
 ```
 fridaRj
 fridatj
+fridaMj
+fridaEj libc.so
+fridaIj libc.so
+fridaSj libc.so
 ```
 
-The agent caches the range list and re-enumerates after code runs in the target (`fridaej` or
-`fridalj`), so listing stays current w/o re-scanning on every call. The reply's
-`cached` flag says whether it came from the cache, and passing any arg to `fridaRj`
-forces a fresh enumeration.
+The agent caches the range and module lists and re-enumerates after code runs in the target
+(`fridaej` or `fridalj`), so listing stays current w/o re-scanning on every call. The reply's
+`cached` flag says whether it came from the cache, and passing any arg to `fridaRj` or
+`fridaMj` forces a fresh enumeration.
+
+## Configuration
+
+Two `e` config variables tune the runtime behaviour:
+
+```
+e frida.mem.max=0x100000   # max bytes per fridaxj/fridawj transfer, 0 for no limit
+e frida.timeout=5000       # session and agent request timeout in milliseconds
+```
+
+`frida.timeout` is applied when a session is opened with `fridaoj`.
 
 ## Install
 

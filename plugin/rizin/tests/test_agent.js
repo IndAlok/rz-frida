@@ -33,16 +33,67 @@ function FakePtr(value) {
 FakePtr.prototype.toString = function () {
 	return '0x' + this.value.toString(16);
 };
+FakePtr.prototype.compare = function (other) {
+	if (this.value < other.value) { return -1; }
+	return this.value > other.value ? 1 : 0;
+};
+FakePtr.prototype.add = function (n) {
+	return new FakePtr(this.value + n);
+};
+FakePtr.prototype.toJSON = function () {
+	return this.toString();
+};
+FakePtr.prototype.readByteArray = function (size) {
+	const off = this.value - MEM_BASE;
+	if (off < 0 || off + size > memory.length) {
+		return null;
+	}
+	return memory.slice(off, off + size).buffer;
+};
+FakePtr.prototype.writeByteArray = function (bytes) {
+	const off = this.value - MEM_BASE;
+	if (off < 0 || off + bytes.length > memory.length) {
+		throw new Error('access violation');
+	}
+	for (let i = 0; i < bytes.length; i++) {
+		memory[off + i] = bytes[i];
+	}
+};
 
-// fake ranges and threads for enumerations, counter for range cache to be checked.
+// fake enumerations, counters so the range & module caches can be checked.
 let rangesEnumerated = 0;
+let modulesEnumerated = 0;
 const fakeRanges = [
 	{ base: new FakePtr(0x1000), size: 0x1000, protection: 'r-x', file: { path: '/bin/app', offset: 0, size: 0x1000 } },
 	{ base: new FakePtr(0x8000), size: 0x2000, protection: 'rw-' }
 ];
 const fakeThreads = [
-	{ id: 1, state: 'waiting' },
-	{ id: 2, state: 'running' }
+	{ id: 1, state: 'waiting', context: { pc: new FakePtr(0x401000), sp: new FakePtr(0x7000) } },
+	{ id: 2, state: 'running', context: { pc: new FakePtr(0x402000), sp: new FakePtr(0x8000) }, entrypoint: { routine: new FakePtr(0x400000), parameter: new FakePtr(0) } }
+];
+const fakeExports = [
+	{ type: 'function', name: 'main', address: new FakePtr(0x401000) },
+	{ type: 'variable', name: 'global', address: new FakePtr(0x402000) }
+];
+const fakeImports = [
+	{ type: 'function', name: 'printf', module: 'libc.so', address: new FakePtr(0x7f0000001000) }
+];
+const fakeSymbols = [
+	{ isGlobal: true, type: 'function', name: 'start', address: new FakePtr(0x401000), size: 32 }
+];
+const fakeModules = [
+	{
+		name: 'app', base: new FakePtr(0x400000), size: 0x20000, path: '/data/app/app',
+		enumerateExports: function () { return fakeExports; },
+		enumerateImports: function () { return fakeImports; },
+		enumerateSymbols: function () { return fakeSymbols; }
+	},
+	{
+		name: 'libc.so', base: new FakePtr(0x7f0000000000), size: 0x100000, path: '/system/lib/libc.so',
+		enumerateExports: function () { return []; },
+		enumerateImports: function () { return []; },
+		enumerateSymbols: function () { return []; }
+	}
 ];
 
 const sandbox = {
@@ -51,31 +102,14 @@ const sandbox = {
 		arch: 'x64',
 		pointerSize: 8,
 		enumerateRanges: function () { rangesEnumerated++; return fakeRanges; },
-		enumerateThreads: function () { return fakeThreads; }
+		enumerateThreads: function () { return fakeThreads; },
+		enumerateModules: function () { modulesEnumerated++; return fakeModules; }
 	},
 	recv: function (cb) { pendingRecv = cb; },
 	// frida marshals send() to json over the wire, so capture that form (it also
 	// drops vm realm prototype, letting deepStrictEqual compare plain objs).
 	send: function (message, data) { sent.push({ message: JSON.parse(JSON.stringify(message)), data: data }); },
 	ptr: function (value) { return new FakePtr(value); },
-	Memory: {
-		readByteArray: function (p, size) {
-			const off = p.value - MEM_BASE;
-			if (off < 0 || off + size > memory.length) {
-				return null;
-			}
-			return memory.slice(off, off + size).buffer;
-		},
-		writeByteArray: function (p, bytes) {
-			const off = p.value - MEM_BASE;
-			if (off < 0 || off + bytes.length > memory.length) {
-				throw new Error('access violation');
-			}
-			for (let i = 0; i < bytes.length; i++) {
-				memory[off + i] = bytes[i];
-			}
-		}
-	},
 	rpc: {},
 	console: console
 };
@@ -154,9 +188,6 @@ assert.strictEqual(readNoAddr.error, 'memRead requires an address', 'a missing a
 const readBadSize = roundtrip({ id: 13, type: 'memRead', params: { address: '0x1000', size: 0 } });
 assert.strictEqual(readBadSize.error, 'memRead requires a positive integer size', 'a non-positive size is rejected');
 
-const readOverCap = roundtrip({ id: 14, type: 'memRead', params: { address: '0x1000', size: 0x100001 } });
-assert.ok(/byte limit/.test(readOverCap.error), 'a size past the limit is rejected');
-
 assert.deepStrictEqual(roundtrip({ id: 15, type: 'memWrite', params: { address: '0x1010', bytes: 'deadbeef' } }),
 	{ id: 15, ok: true, result: { address: '0x1010', size: 4 } },
 	'memWrite reports the number of bytes written');
@@ -174,6 +205,11 @@ assert.strictEqual(writeBadHex.error, 'hex input has a non-hex character', 'non-
 const writeOob = roundtrip({ id: 19, type: 'memWrite', params: { address: '0x10f8', bytes: 'deadbeefdeadbeefdeadbeef' } });
 assert.strictEqual(writeOob.ok, false, 'a write past the region is rejected');
 
+// memRead/memWrite above filled range cache to validate addrs, clear it
+// so cache assertions below start from a known state.
+roundtrip({ id: 100, type: 'eval', params: { source: '0' } });
+rangesEnumerated = 0;
+
 const firstRanges = roundtrip({ id: 20, type: 'ranges' });
 assert.strictEqual(firstRanges.result.cached, false, 'the first ranges call enumerates');
 assert.deepStrictEqual(firstRanges.result.ranges, [
@@ -190,7 +226,61 @@ assert.strictEqual(roundtrip({ id: 25, type: 'ranges' }).result.cached, false, '
 assert.strictEqual(rangesEnumerated, 3, 'the cache avoided redundant enumeration');
 
 assert.deepStrictEqual(roundtrip({ id: 26, type: 'threads' }),
-	{ id: 26, ok: true, result: { threads: [{ id: 1, state: 'waiting' }, { id: 2, state: 'running' }] } },
-	'threads returns each thread id and state');
+	{ id: 26, ok: true, result: { threads: [
+		{ id: 1, state: 'waiting', context: { pc: '0x401000', sp: '0x7000' } },
+		{ id: 2, state: 'running', context: { pc: '0x402000', sp: '0x8000' }, entrypoint: { routine: '0x400000', parameter: '0x0' } }
+	] } },
+	'threads returns id, state, register context, and entrypoint');
+
+const readUnmapped = roundtrip({ id: 27, type: 'memRead', params: { address: '0x50000', size: 16 } });
+assert.strictEqual(readUnmapped.ok, false, 'a read of unmapped memory is rejected');
+assert.ok(/not mapped/.test(readUnmapped.error), 'the unmapped read address is reported');
+
+const writeUnmapped = roundtrip({ id: 28, type: 'memWrite', params: { address: '0x50000', bytes: 'deadbeef' } });
+assert.strictEqual(writeUnmapped.ok, false, 'a write to unmapped memory is rejected');
+assert.ok(/not mapped/.test(writeUnmapped.error), 'the unmapped write address is reported');
+
+const firstModules = roundtrip({ id: 29, type: 'modules' });
+assert.strictEqual(firstModules.result.cached, false, 'the first modules call enumerates');
+assert.deepStrictEqual(firstModules.result.modules, [
+	{ name: 'app', base: '0x400000', size: 0x20000, path: '/data/app/app' },
+	{ name: 'libc.so', base: '0x7f0000000000', size: 0x100000, path: '/system/lib/libc.so' }
+], 'modules returns the mapped module details');
+
+assert.strictEqual(roundtrip({ id: 30, type: 'modules' }).result.cached, true, 'a second modules call serves the cache');
+roundtrip({ id: 31, type: 'eval', params: { source: '0' } });
+assert.strictEqual(roundtrip({ id: 32, type: 'modules' }).result.cached, false, 'running code drops the cached modules');
+assert.strictEqual(modulesEnumerated, 2, 'the cache avoided redundant module enumeration');
+
+assert.deepStrictEqual(roundtrip({ id: 33, type: 'exports', params: { module: 'app' } }),
+	{ id: 33, ok: true, result: { module: 'app', exports: [
+		{ type: 'function', name: 'main', address: '0x401000' },
+		{ type: 'variable', name: 'global', address: '0x402000' }
+	] } },
+	'exports lists the module exports');
+
+const exportsMissing = roundtrip({ id: 34, type: 'exports', params: { module: 'nope' } });
+assert.strictEqual(exportsMissing.error, 'no module named nope', 'an unknown module is rejected');
+
+const exportsNoName = roundtrip({ id: 35, type: 'exports', params: {} });
+assert.strictEqual(exportsNoName.error, 'exports requires a module name', 'a missing module name is rejected');
+
+assert.deepStrictEqual(roundtrip({ id: 36, type: 'imports', params: { module: 'app' } }),
+	{ id: 36, ok: true, result: { module: 'app', imports: [
+		{ type: 'function', name: 'printf', module: 'libc.so', address: '0x7f0000001000' }
+	] } },
+	'imports lists the module imports');
+
+const importsNoName = roundtrip({ id: 37, type: 'imports', params: {} });
+assert.strictEqual(importsNoName.error, 'imports requires a module name', 'imports needs a module name');
+
+assert.deepStrictEqual(roundtrip({ id: 38, type: 'symbols', params: { module: 'app' } }),
+	{ id: 38, ok: true, result: { module: 'app', symbols: [
+		{ isGlobal: true, type: 'function', name: 'start', address: '0x401000', size: 32 }
+	] } },
+	'symbols lists the module symbols');
+
+const symbolsMissing = roundtrip({ id: 39, type: 'symbols', params: { module: 'nope' } });
+assert.strictEqual(symbolsMissing.error, 'no module named nope', 'symbols rejects an unknown module');
 
 console.log('ok - agent script protocol');

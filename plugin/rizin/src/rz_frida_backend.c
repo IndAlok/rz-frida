@@ -1249,6 +1249,156 @@ RZ_IPI bool rz_frida_backend_threads(RzFridaSession *session, PJ *pj) {
 }
 
 /**
+ * \brief List the target modules through the agent.
+ *
+ * Loads the agent on first use and sends a modules request. The agent caches the
+ * module list and re-enumerates when \p refresh is set or after code runs in the
+ * target. Writes an ok:true envelope carrying the modules and whether they came
+ * from the cache, or an ok:false envelope on timeout, cancel, or an agent error.
+ * When the plugin is built without frida-core, a self-contained implementation
+ * reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param refresh Re-enumerate instead of serving the cached module list.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the modules, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_modules(RzFridaSession *session, bool refresh, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	char *params_json = NULL;
+	if (refresh) {
+		PJ *params = pj_new();
+		if (!params) {
+			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+			return false;
+		}
+		pj_o(params);
+		pj_kb(params, "refresh", true);
+		pj_end(params);
+		params_json = pj_drain(params);
+		if (!params_json) {
+			rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+			return false;
+		}
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "modules", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+static bool backend_module_query(RzFridaSession *session, const char *kind, const char *module, PJ *pj) {
+	if (!RZ_STR_ISNOTEMPTY(module)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "missing module name");
+		return false;
+	}
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	pj_o(params);
+	pj_ks(params, "module", module);
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, kind, params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief List the exports of a target module through the agent.
+ *
+ * Loads the agent on first use and lists the named module's exports, each with
+ * its type, name, and address. Writes an ok:false envelope on a missing module
+ * name, timeout, cancel, or an agent error, and reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE when built without frida-core.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param module Name of the module whose exports are listed.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the exports, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_exports(RzFridaSession *session, const char *module, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	return backend_module_query(session, "exports", module, pj);
+}
+
+/**
+ * \brief List the imports of a target module through the agent.
+ *
+ * Like \ref rz_frida_backend_exports, listing the named module's imports, each
+ * with its type, name, source module, and address.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param module Name of the module whose imports are listed.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the imports, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_imports(RzFridaSession *session, const char *module, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	return backend_module_query(session, "imports", module, pj);
+}
+
+/**
+ * \brief List the symbols of a target module through the agent.
+ *
+ * Like \ref rz_frida_backend_exports, listing the named module's symbols. The
+ * result is empty for a module that carries no symbol table.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param module Name of the module whose symbols are listed.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the symbols, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_symbols(RzFridaSession *session, const char *module, PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	return backend_module_query(session, "symbols", module, pj);
+}
+
+/**
  * \brief Ping the agent loaded in the target and report what it sees.
  *
  * Loads the agent on first use, sends a ping request, and writes an ok:true

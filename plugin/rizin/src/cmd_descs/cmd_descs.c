@@ -16,6 +16,10 @@ static const RzCmdDescDetail cmd_fridal_details[2];
 static const RzCmdDescDetail cmd_fridax_details[2];
 static const RzCmdDescDetail cmd_fridaw_details[2];
 static const RzCmdDescDetail cmd_fridaR_details[2];
+static const RzCmdDescDetail cmd_fridaM_details[2];
+static const RzCmdDescDetail cmd_fridaE_details[2];
+static const RzCmdDescDetail cmd_fridaI_details[2];
+static const RzCmdDescDetail cmd_fridaS_details[2];
 static const RzCmdDescDetail cmd_frida_details[10];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
@@ -26,6 +30,10 @@ static const RzCmdDescArg cmd_fridal_args[2];
 static const RzCmdDescArg cmd_fridax_args[3];
 static const RzCmdDescArg cmd_fridaw_args[3];
 static const RzCmdDescArg cmd_fridaR_args[2];
+static const RzCmdDescArg cmd_fridaM_args[2];
+static const RzCmdDescArg cmd_fridaE_args[2];
+static const RzCmdDescArg cmd_fridaI_args[2];
+static const RzCmdDescArg cmd_fridaS_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -82,6 +90,10 @@ static const RzCmdDescDetailEntry cmd_frida_Memory_space_access_detail_entries[]
 static const RzCmdDescDetailEntry cmd_frida_Runtime_space_info_detail_entries[] = {
 	{ .text = "fridaRj", .arg_str = NULL, .comment = "List the target memory ranges" },
 	{ .text = "fridatj", .arg_str = NULL, .comment = "List the target threads" },
+	{ .text = "fridaMj", .arg_str = NULL, .comment = "List the target modules" },
+	{ .text = "fridaEj ", .arg_str = "libc.so", .comment = "List the exports of a module" },
+	{ .text = "fridaIj ", .arg_str = "libc.so", .comment = "List the imports of a module" },
+	{ .text = "fridaSj ", .arg_str = "libc.so", .comment = "List the symbols of a module" },
 	{ 0 },
 };
 static const RzCmdDescDetail cmd_frida_details[] = {
@@ -413,6 +425,104 @@ static const RzCmdDescHelp cmd_fridat_help = {
 	.args = cmd_fridat_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridaM_Examples_detail_entries[] = {
+	{ .text = "fridaMj", .arg_str = NULL, .comment = "List the cached target modules" },
+	{ .text = "fridaMj ", .arg_str = "refresh", .comment = "Re-enumerate the modules instead of using the cache" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaM_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaM_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaM_args[] = {
+	{
+		.name = "refresh",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaM_help = {
+	.summary = "List target modules",
+	.description = "Lists the modules loaded in the target process through the rz-frida agent, each with its name, base, size, and path. The agent caches the list and re-enumerates it after code runs in the target, pass any argument to force a fresh enumeration. Loads the agent into the open session on first use.",
+	.details = cmd_fridaM_details,
+	.args = cmd_fridaM_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaE_Examples_detail_entries[] = {
+	{ .text = "fridaEj ", .arg_str = "libc.so", .comment = "List the exports of libc.so in the target" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaE_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaE_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaE_args[] = {
+	{
+		.name = "module",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaE_help = {
+	.summary = "List target module exports",
+	.description = "Lists the exports of a module loaded in the target process through the rz-frida agent, each with its type, name, and address. Loads the agent into the open session on first use.",
+	.details = cmd_fridaE_details,
+	.args = cmd_fridaE_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaI_Examples_detail_entries[] = {
+	{ .text = "fridaIj ", .arg_str = "libc.so", .comment = "List the imports of libc.so in the target" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaI_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaI_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaI_args[] = {
+	{
+		.name = "module",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaI_help = {
+	.summary = "List target module imports",
+	.description = "Lists the imports of a module loaded in the target process through the rz-frida agent, each with its type, name, source module, and address. Loads the agent into the open session on first use.",
+	.details = cmd_fridaI_details,
+	.args = cmd_fridaI_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaS_Examples_detail_entries[] = {
+	{ .text = "fridaSj ", .arg_str = "libc.so", .comment = "List the symbols of libc.so in the target" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaS_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaS_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaS_args[] = {
+	{
+		.name = "module",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaS_help = {
+	.summary = "List target module symbols",
+	.description = "Lists the symbols of a module loaded in the target process through the rz-frida agent, each with its name, address, and type. The list is empty for a module that carries no symbol table. Loads the agent into the open session on first use.",
+	.details = cmd_fridaS_details,
+	.args = cmd_fridaS_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -466,5 +576,17 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridat_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridat", RZ_OUTPUT_MODE_JSON, rz_cmd_fridat_handler, &cmd_fridat_help);
 	rz_warn_if_fail(cmd_fridat_cd);
+
+	RzCmdDesc *cmd_fridaM_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaM", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaM_handler, &cmd_fridaM_help);
+	rz_warn_if_fail(cmd_fridaM_cd);
+
+	RzCmdDesc *cmd_fridaE_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaE", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaE_handler, &cmd_fridaE_help);
+	rz_warn_if_fail(cmd_fridaE_cd);
+
+	RzCmdDesc *cmd_fridaI_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaI", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaI_handler, &cmd_fridaI_help);
+	rz_warn_if_fail(cmd_fridaI_cd);
+
+	RzCmdDesc *cmd_fridaS_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaS", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaS_handler, &cmd_fridaS_help);
+	rz_warn_if_fail(cmd_fridaS_cd);
 	rz_cmd_batch_end(core->rcmd);
 }
