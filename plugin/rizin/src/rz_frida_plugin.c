@@ -200,7 +200,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const
 		return RZ_CMD_STATUS_OK;
 	}
 
-	ut64 timeout = rz_config_get_i(core->config, "frida.timeout");
+	ut64 timeout = rz_config_get_integer(core->config, "frida.timeout");
 	if (timeout) {
 		rz_frida_session_set_timeout(session, timeout);
 	}
@@ -354,7 +354,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridax_handler(RzCore *core, RZ_UNUSED int argc, const
 
 	PJ *pj = state->d.pj;
 	ut64 size = rz_num_math(core->num, argv[2]);
-	ut64 maxbytes = rz_config_get_i(core->config, "frida.mem.max");
+	ut64 maxbytes = rz_config_get_integer(core->config, "frida.mem.max");
 	if (maxbytes && size > maxbytes) {
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "read size exceeds the frida.mem.max limit");
 		return RZ_CMD_STATUS_OK;
@@ -385,7 +385,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridaw_handler(RzCore *core, RZ_UNUSED int argc, const
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "expected an even-length hex byte string");
 		return RZ_CMD_STATUS_OK;
 	}
-	ut64 maxbytes = rz_config_get_i(core->config, "frida.mem.max");
+	ut64 maxbytes = rz_config_get_integer(core->config, "frida.mem.max");
 	if (maxbytes && (ut64)(hexlen / 2) > maxbytes) {
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "write size exceeds the frida.mem.max limit");
 		return RZ_CMD_STATUS_OK;
@@ -566,14 +566,8 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 	}
 
 	// register the configurable limits the cmds read.
-	RzConfigNode *node = rz_config_set_i(core->config, "frida.mem.max", RZ_FRIDA_MEM_MAX_DEFAULT);
-	if (node) {
-		rz_config_node_desc(node, "Maximum bytes per frida memory read or write, 0 for no limit");
-	}
-	node = rz_config_set_i(core->config, "frida.timeout", RZ_FRIDA_DEFAULT_TIMEOUT_MS);
-	if (node) {
-		rz_config_node_desc(node, "Frida session and agent request timeout in milliseconds");
-	}
+	rz_config_add_integer(core->config, "frida.mem.max", "Maximum bytes per frida memory read or write, 0 for no limit", RZ_FRIDA_MEM_MAX_DEFAULT);
+	rz_config_add_integer(core->config, "frida.timeout", "Frida session and agent request timeout in milliseconds", RZ_FRIDA_DEFAULT_TIMEOUT_MS);
 
 	rz_frida_backend_init();
 
