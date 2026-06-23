@@ -108,17 +108,17 @@ static RzCmdStatus print_uri(const char *uri_string, RzCmdStateOutput *state) {
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridas_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridas_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return print_status(core, state);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridau_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridau_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return print_uri(argv[1], state);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -130,8 +130,8 @@ RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-static RzCmdStatus run_device_listing(int argc, const char **argv, RzCmdStateOutput *state,
-	RzFridaAction action, bool (*list)(const RzFridaUri *uri, PJ *pj)) {
+static RzCmdStatus run_device_listing(int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state,
+	RzFridaAction action, RZ_NONNULL bool (*list)(const RzFridaUri *uri, PJ *pj)) {
 	rz_return_val_if_fail(argv && state && list, RZ_CMD_STATUS_ERROR);
 
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
@@ -160,17 +160,17 @@ static RzCmdStatus run_device_listing(int argc, const char **argv, RzCmdStateOut
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_LIST, rz_frida_processes_json);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaa_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaa_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_APPS, rz_frida_apps_json);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -223,7 +223,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -240,7 +240,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -266,7 +266,7 @@ static void frida_cancel_on_break(void *user) {
 	rz_frida_session_request_cancel((RzFridaSession *)user);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -285,7 +285,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -310,7 +310,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -329,7 +329,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -346,7 +346,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridax_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridax_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -372,7 +372,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridax_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaw_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaw_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -415,7 +415,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridaw_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaR_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaR_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -436,7 +436,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridaR_handler(RzCore *core, int argc, const char **ar
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridat_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridat_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -455,7 +455,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridat_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaM_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaM_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -476,7 +476,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridaM_handler(RzCore *core, int argc, const char **ar
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaE_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaE_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -495,7 +495,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridaE_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaI_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaI_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -514,7 +514,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridaI_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaS_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaS_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
