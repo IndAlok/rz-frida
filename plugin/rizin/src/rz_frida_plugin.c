@@ -533,6 +533,83 @@ RZ_IPI RzCmdStatus rz_cmd_fridaS_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int 
 	return RZ_CMD_STATUS_OK;
 }
 
+RZ_IPI RzCmdStatus rz_cmd_fridab_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// an addr sets a breakpoint, no arg lists the current breakpoints.
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	if (argc > 1 && RZ_STR_ISNOTEMPTY(argv[1])) {
+		ut64 address = rz_num_math(core->num, argv[1]);
+		rz_frida_backend_bp_set(ctx->session, address, pj);
+	} else {
+		rz_frida_backend_bp_list(ctx->session, pj);
+	}
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridab_minus_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	const char *target = argv[1];
+	char address_str[32];
+	if (!RZ_STR_EQ(target, "*")) {
+		ut64 address = rz_num_math(core->num, target);
+		rz_strf(address_str, "0x%" PFMT64x, address);
+		target = address_str;
+	}
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_bp_remove(ctx->session, target, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridag_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// a thread id continues that thread, no arg continues most recent one.
+	char tid[32];
+	const char *thread_id = NULL;
+	if (argc > 1 && RZ_STR_ISNOTEMPTY(argv[1])) {
+		rz_strf(tid, "%" PFMT64u, rz_num_math(core->num, argv[1]));
+		thread_id = tid;
+	}
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_continue(ctx->session, thread_id, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }

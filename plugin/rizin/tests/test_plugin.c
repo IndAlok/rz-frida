@@ -31,6 +31,9 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaE"), "fridaE command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaI"), "fridaI command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaS"), "fridaS command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridab"), "fridab command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridab-"), "fridab- command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridag"), "fridag command is registered");
 	mu_end;
 }
 
@@ -292,6 +295,46 @@ static bool test_symbols_without_session(RzCore *core) {
 	mu_end;
 }
 
+static bool test_bp_set_without_session(RzCore *core) {
+	char *bp = rz_core_cmd_str(core, "fridabj 0x1000");
+	mu_assert_notnull(bp, "breakpoint set command returns output");
+	mu_assert_streq(bp,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"breakpoint set without an open session reports the precondition failure");
+	RZ_FREE(bp);
+	mu_end;
+}
+
+static bool test_bp_list_without_session(RzCore *core) {
+	char *bp = rz_core_cmd_str(core, "fridabj");
+	mu_assert_notnull(bp, "breakpoint list command returns output");
+	mu_assert_streq(bp,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"breakpoint list without an open session reports the precondition failure");
+	RZ_FREE(bp);
+	mu_end;
+}
+
+static bool test_bp_remove_without_session(RzCore *core) {
+	char *bp = rz_core_cmd_str(core, "fridab-j 0x1000");
+	mu_assert_notnull(bp, "breakpoint remove command returns output");
+	mu_assert_streq(bp,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"breakpoint remove without an open session reports the precondition failure");
+	RZ_FREE(bp);
+	mu_end;
+}
+
+static bool test_continue_without_session(RzCore *core) {
+	char *cont = rz_core_cmd_str(core, "fridagj");
+	mu_assert_notnull(cont, "continue command returns output");
+	mu_assert_streq(cont,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"continue without an open session reports the precondition failure");
+	RZ_FREE(cont);
+	mu_end;
+}
+
 static bool test_invalid_open_uri(RzCore *core) {
 	char *open = rz_core_cmd_str(core, "fridaoj gdb://attach/local//1234");
 	mu_assert_notnull(open, "open command returns output");
@@ -366,6 +409,9 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaE"), "fridaE command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaI"), "fridaI command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaS"), "fridaS command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridab"), "fridab command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridab-"), "fridab- command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridag"), "fridag command is removed");
 	mu_end;
 }
 
@@ -403,6 +449,10 @@ int all_tests(void) {
 	mu_run_test(test_exports_without_session, core);
 	mu_run_test(test_imports_without_session, core);
 	mu_run_test(test_symbols_without_session, core);
+	mu_run_test(test_bp_set_without_session, core);
+	mu_run_test(test_bp_list_without_session, core);
+	mu_run_test(test_bp_remove_without_session, core);
+	mu_run_test(test_continue_without_session, core);
 	mu_run_test(test_invalid_open_uri, core);
 	mu_run_test(test_open_command, core);
 	mu_run_test(test_open_usb_command, core);

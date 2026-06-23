@@ -5,6 +5,10 @@ const RZ_FRIDA_AGENT_VERSION = 1;
 let rangeCache = null;
 let moduleCache = null;
 
+const breakpoints = new Map();
+let nextBreakpointId = 1;
+const parked = [];
+
 function agentInfo() {
   return {
     version: RZ_FRIDA_AGENT_VERSION,
@@ -174,6 +178,70 @@ function moduleListing(type, params) {
   return result;
 }
 
+function bpSet(params) {
+  const addr = requireAddress(params);
+  const key = addr.toString();
+  if (breakpoints.has(key)) {
+    throw new Error('a breakpoint already exists at ' + key);
+  }
+  const id = nextBreakpointId++;
+  const listener = Interceptor.attach(addr, {
+    onEnter() {
+      const tid = Process.getCurrentThreadId();
+      send({ type: 'frida.bp', bp: id, address: key, threadId: tid, context: serialize(this.context) });
+      parked.push(tid);
+      let resumed = false;
+      do {
+        const op = recv('frida.cont.' + tid, function (message) {
+          resumed = true;
+          if (typeof message.id === 'number') {
+            send({ id: message.id, ok: true, result: { resumed: true, threadId: tid } });
+          }
+        });
+        op.wait();
+      } while (!resumed);
+      const at = parked.indexOf(tid);
+      if (at !== -1) {
+        parked.splice(at, 1);
+      }
+    }
+  });
+  breakpoints.set(key, { id: id, address: key, listener: listener });
+  return { address: key, bp: id };
+}
+
+function bpList() {
+  const list = [];
+  breakpoints.forEach(function (bp) {
+    list.push({ bp: bp.id, address: bp.address });
+  });
+  return { breakpoints: list };
+}
+
+function bpRemove(params) {
+  if (params && params.address === '*') {
+    const removed = breakpoints.size;
+    breakpoints.forEach(function (bp) {
+      bp.listener.detach();
+    });
+    breakpoints.clear();
+    return { removed: removed };
+  }
+  const addr = requireAddress(params);
+  const key = addr.toString();
+  const bp = breakpoints.get(key);
+  if (!bp) {
+    throw new Error('no breakpoint at ' + key);
+  }
+  bp.listener.detach();
+  breakpoints.delete(key);
+  return { address: key, removed: 1 };
+}
+
+function parkedThreads() {
+  return { parked: parked.slice(), recent: parked.length ? parked[parked.length - 1] : null };
+}
+
 function invalidateCaches() {
   rangeCache = null;
   moduleCache = null;
@@ -211,6 +279,14 @@ function handleRequest(request) {
       return moduleListing('imports', params);
     case 'symbols':
       return moduleListing('symbols', params);
+    case 'bpSet':
+      return bpSet(params);
+    case 'bpList':
+      return bpList();
+    case 'bpRemove':
+      return bpRemove(params);
+    case 'bpParked':
+      return parkedThreads();
     default:
       throw new Error('unknown request type: ' + String(type));
   }

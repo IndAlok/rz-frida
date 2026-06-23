@@ -20,6 +20,8 @@ const source = fs.readFileSync(agentPath, 'utf8');
 
 const sent = [];
 let pendingRecv = null;
+const interceptors = new Map();
+let continueDeliverId = 0;
 
 // fake target memory region, backs a known byte pattern at MEM_BASE, addressed through ptr().
 const MEM_BASE = 0x1000;
@@ -103,13 +105,31 @@ const sandbox = {
 		pointerSize: 8,
 		enumerateRanges: function () { rangesEnumerated++; return fakeRanges; },
 		enumerateThreads: function () { return fakeThreads; },
-		enumerateModules: function () { modulesEnumerated++; return fakeModules; }
+		enumerateModules: function () { modulesEnumerated++; return fakeModules; },
+		getCurrentThreadId: function () { return 4242; }
 	},
-	recv: function (cb) { pendingRecv = cb; },
+	// catch-all recv(cb) stores the handler, typed recv(type, cb) delivers a
+	// continue at once so a parked breakpoint loop returns synchronously here.
+	recv: function (type, cb) {
+		if (typeof type === 'function') {
+			pendingRecv = type;
+			return { wait: function () {} };
+		}
+		cb({ id: continueDeliverId, type: type });
+		return { wait: function () {} };
+	},
 	// frida marshals send() to json over the wire, so capture that form (it also
 	// drops vm realm prototype, letting deepStrictEqual compare plain objs).
 	send: function (message, data) { sent.push({ message: JSON.parse(JSON.stringify(message)), data: data }); },
 	ptr: function (value) { return new FakePtr(value); },
+	Interceptor: {
+		attach: function (addr, callbacks) {
+			const key = addr.toString();
+			const listener = { detach: function () { interceptors.delete(key); } };
+			interceptors.set(key, { onEnter: callbacks.onEnter, listener: listener });
+			return listener;
+		}
+	},
 	rpc: {},
 	console: console
 };
@@ -286,5 +306,51 @@ assert.deepStrictEqual(roundtrip({ id: 38, type: 'symbols', params: { module: 'a
 
 const symbolsMissing = roundtrip({ id: 39, type: 'symbols', params: { module: 'nope' } });
 assert.strictEqual(symbolsMissing.error, 'no module named nope', 'symbols rejects an unknown module');
+
+assert.deepStrictEqual(roundtrip({ id: 40, type: 'bpSet', params: { address: '0x1000' } }),
+	{ id: 40, ok: true, result: { address: '0x1000', bp: 1 } },
+	'bpSet attaches a breakpoint and returns its id');
+
+const bpDup = roundtrip({ id: 41, type: 'bpSet', params: { address: '0x1000' } });
+assert.strictEqual(bpDup.error, 'a breakpoint already exists at 0x1000', 'a duplicate breakpoint is rejected');
+
+assert.deepStrictEqual(roundtrip({ id: 42, type: 'bpList' }),
+	{ id: 42, ok: true, result: { breakpoints: [{ bp: 1, address: '0x1000' }] } },
+	'bpList reports the breakpoints that are set');
+
+// fire the captured onEnter: it emits the async frida.bp event, then parks on
+// its own per-thread channel until the typed continue from the recv mock frees it.
+const beforeHit = sent.length;
+continueDeliverId = 500;
+interceptors.get('0x1000').onEnter.call({ context: { pc: new FakePtr(0x1000), sp: new FakePtr(0x7000) } });
+const hit = sent[beforeHit].message;
+assert.strictEqual(hit.type, 'frida.bp', 'a hit emits a frida.bp event');
+assert.strictEqual(hit.bp, 1, 'the hit event names the breakpoint id under bp, not id');
+assert.strictEqual(hit.id, undefined, 'the hit event has no top-level id so it is never read as a reply');
+assert.strictEqual(hit.address, '0x1000', 'the hit event names the address');
+assert.strictEqual(hit.threadId, 4242, 'the hit event carries the thread id');
+assert.deepStrictEqual(hit.context, { pc: '0x1000', sp: '0x7000' }, 'the hit event carries the register context');
+assert.deepStrictEqual(sent[beforeHit + 1].message, { id: 500, ok: true, result: { resumed: true, threadId: 4242 } },
+	'the parked thread answers the continue that released it, naming its thread');
+
+assert.deepStrictEqual(roundtrip({ id: 43, type: 'bpParked' }),
+	{ id: 43, ok: true, result: { parked: [], recent: null } },
+	'bpParked reports no parked threads once the hit has been continued');
+
+assert.deepStrictEqual(roundtrip({ id: 44, type: 'bpRemove', params: { address: '0x1000' } }),
+	{ id: 44, ok: true, result: { address: '0x1000', removed: 1 } },
+	'bpRemove detaches a breakpoint');
+
+const bpGone = roundtrip({ id: 45, type: 'bpRemove', params: { address: '0x1000' } });
+assert.strictEqual(bpGone.error, 'no breakpoint at 0x1000', 'removing a missing breakpoint is rejected');
+
+roundtrip({ id: 46, type: 'bpSet', params: { address: '0x2000' } });
+roundtrip({ id: 47, type: 'bpSet', params: { address: '0x3000' } });
+assert.deepStrictEqual(roundtrip({ id: 48, type: 'bpRemove', params: { address: '*' } }),
+	{ id: 48, ok: true, result: { removed: 2 } },
+	'bpRemove * clears every breakpoint');
+assert.deepStrictEqual(roundtrip({ id: 49, type: 'bpList' }),
+	{ id: 49, ok: true, result: { breakpoints: [] } },
+	'bpList is empty after removing every breakpoint');
 
 console.log('ok - agent script protocol');

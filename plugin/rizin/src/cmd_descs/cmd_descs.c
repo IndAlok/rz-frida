@@ -20,7 +20,10 @@ static const RzCmdDescDetail cmd_fridaM_details[2];
 static const RzCmdDescDetail cmd_fridaE_details[2];
 static const RzCmdDescDetail cmd_fridaI_details[2];
 static const RzCmdDescDetail cmd_fridaS_details[2];
-static const RzCmdDescDetail cmd_frida_details[10];
+static const RzCmdDescDetail cmd_fridab_details[2];
+static const RzCmdDescDetail cmd_fridab_minus_details[2];
+static const RzCmdDescDetail cmd_fridag_details[2];
+static const RzCmdDescDetail cmd_frida_details[11];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
 static const RzCmdDescArg cmd_fridaa_args[2];
@@ -34,6 +37,9 @@ static const RzCmdDescArg cmd_fridaM_args[2];
 static const RzCmdDescArg cmd_fridaE_args[2];
 static const RzCmdDescArg cmd_fridaI_args[2];
 static const RzCmdDescArg cmd_fridaS_args[2];
+static const RzCmdDescArg cmd_fridab_args[2];
+static const RzCmdDescArg cmd_fridab_minus_args[2];
+static const RzCmdDescArg cmd_fridag_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -96,6 +102,14 @@ static const RzCmdDescDetailEntry cmd_frida_Runtime_space_info_detail_entries[] 
 	{ .text = "fridaSj ", .arg_str = "libc.so", .comment = "List the symbols of a module" },
 	{ 0 },
 };
+
+static const RzCmdDescDetailEntry cmd_frida_Debugging_detail_entries[] = {
+	{ .text = "fridabj ", .arg_str = "0x1000", .comment = "Set a breakpoint at an address" },
+	{ .text = "fridabj", .arg_str = NULL, .comment = "List the breakpoints that are set" },
+	{ .text = "fridab-j ", .arg_str = "0x1000", .comment = "Remove a breakpoint, or use * for all" },
+	{ .text = "fridagj", .arg_str = NULL, .comment = "Continue a thread parked at a breakpoint" },
+	{ 0 },
+};
 static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Session status", .entries = cmd_frida_Session_space_status_detail_entries },
 	{ .name = "URI grammar", .entries = cmd_frida_URI_space_grammar_detail_entries },
@@ -106,6 +120,7 @@ static const RzCmdDescDetail cmd_frida_details[] = {
 	{ .name = "Script execution", .entries = cmd_frida_Script_space_execution_detail_entries },
 	{ .name = "Memory access", .entries = cmd_frida_Memory_space_access_detail_entries },
 	{ .name = "Runtime info", .entries = cmd_frida_Runtime_space_info_detail_entries },
+	{ .name = "Debugging", .entries = cmd_frida_Debugging_detail_entries },
 	{ 0 },
 };
 static const RzCmdDescHelp cmd_frida_help = {
@@ -523,6 +538,81 @@ static const RzCmdDescHelp cmd_fridaS_help = {
 	.args = cmd_fridaS_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridab_Examples_detail_entries[] = {
+	{ .text = "fridabj ", .arg_str = "0x1000", .comment = "Set a breakpoint at 0x1000 in the target" },
+	{ .text = "fridabj", .arg_str = NULL, .comment = "List the breakpoints that are set" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridab_details[] = {
+	{ .name = "Examples", .entries = cmd_fridab_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridab_args[] = {
+	{
+		.name = "address",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridab_help = {
+	.summary = "Set or list native breakpoints",
+	.description = "Sets a breakpoint at an address in the target process through the rz-frida agent, or lists the breakpoints that are set when called with no argument. A hit is reported asynchronously through fridam with the thread id and register context, and the thread stays parked until fridag continues it. Loads the agent into the open session on first use.",
+	.details = cmd_fridab_details,
+	.args = cmd_fridab_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridab_minus_Examples_detail_entries[] = {
+	{ .text = "fridab-j ", .arg_str = "0x1000", .comment = "Remove the breakpoint at 0x1000" },
+	{ .text = "fridab-j ", .arg_str = "*", .comment = "Remove every breakpoint" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridab_minus_details[] = {
+	{ .name = "Examples", .entries = cmd_fridab_minus_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridab_minus_args[] = {
+	{
+		.name = "address",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridab_minus_help = {
+	.summary = "Remove native breakpoints",
+	.description = "Removes the breakpoint at an address in the target process through the rz-frida agent, or every breakpoint when the address is *. Loads the agent into the open session on first use.",
+	.details = cmd_fridab_minus_details,
+	.args = cmd_fridab_minus_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridag_Examples_detail_entries[] = {
+	{ .text = "fridagj", .arg_str = NULL, .comment = "Continue the most recently parked thread" },
+	{ .text = "fridagj ", .arg_str = "4242", .comment = "Continue the thread with id 4242" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridag_details[] = {
+	{ .name = "Examples", .entries = cmd_fridag_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridag_args[] = {
+	{
+		.name = "thread",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridag_help = {
+	.summary = "Continue a thread parked at a breakpoint",
+	.description = "Continues a thread parked at a breakpoint in the target process through the rz-frida agent. With a thread id it continues that exact thread, with no argument it continues the most recently parked thread, and reports whether a thread was released. Loads the agent into the open session on first use.",
+	.details = cmd_fridag_details,
+	.args = cmd_fridag_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -588,5 +678,14 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridaS_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaS", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaS_handler, &cmd_fridaS_help);
 	rz_warn_if_fail(cmd_fridaS_cd);
+
+	RzCmdDesc *cmd_fridab_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridab", RZ_OUTPUT_MODE_JSON, rz_cmd_fridab_handler, &cmd_fridab_help);
+	rz_warn_if_fail(cmd_fridab_cd);
+
+	RzCmdDesc *cmd_fridab_minus_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridab-", RZ_OUTPUT_MODE_JSON, rz_cmd_fridab_minus_handler, &cmd_fridab_minus_help);
+	rz_warn_if_fail(cmd_fridab_minus_cd);
+
+	RzCmdDesc *cmd_fridag_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridag", RZ_OUTPUT_MODE_JSON, rz_cmd_fridag_handler, &cmd_fridag_help);
+	rz_warn_if_fail(cmd_fridag_cd);
 	rz_cmd_batch_end(core->rcmd);
 }
