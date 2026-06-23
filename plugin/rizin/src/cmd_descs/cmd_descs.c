@@ -82,8 +82,8 @@ static const RzCmdDescDetailEntry cmd_frida_Script_space_execution_detail_entrie
 };
 
 static const RzCmdDescDetailEntry cmd_frida_Memory_space_access_detail_entries[] = {
-	{ .text = "fridaxj ", .arg_str = "0x1000 64", .comment = "Read 64 bytes of target memory as hex" },
-	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write four bytes into target memory" },
+	{ .text = "fridaxj ", .arg_str = "0x1000 64", .comment = "Read 64 bytes of the target memory as hex" },
+	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write four bytes into the target memory" },
 	{ 0 },
 };
 
@@ -362,7 +362,7 @@ static const RzCmdDescHelp cmd_fridax_help = {
 };
 
 static const RzCmdDescDetailEntry cmd_fridaw_Examples_detail_entries[] = {
-	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write the bytes de ad be ef at 0x1000 in the target" },
+	{ .text = "fridawj ", .arg_str = "0x1000 deadbeef", .comment = "Write the bytes 'de ad be ef' at 0x1000 in the target" },
 	{ 0 },
 };
 static const RzCmdDescDetail cmd_fridaw_details[] = {

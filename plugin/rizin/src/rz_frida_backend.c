@@ -1031,7 +1031,7 @@ RZ_IPI bool rz_frida_backend_eval(RzFridaSession *session, const char *source, P
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the bytes, false on any error.
  */
-RZ_IPI bool rz_frida_backend_mem_read(RzFridaSession *session, ut64 address, ut64 size, PJ *pj) {
+RZ_IPI bool rz_frida_backend_mem_read(RZ_NONNULL RzFridaSession *session, ut64 address, ut64 size, RZ_NONNULL PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
 	if (size == 0) {
@@ -1095,7 +1095,7 @@ RZ_IPI bool rz_frida_backend_mem_read(RzFridaSession *session, ut64 address, ut6
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent confirmed the write, false on any error.
  */
-RZ_IPI bool rz_frida_backend_mem_write(RzFridaSession *session, ut64 address, const ut8 *bytes, size_t len, PJ *pj) {
+RZ_IPI bool rz_frida_backend_mem_write(RZ_NONNULL RzFridaSession *session, ut64 address, RZ_NONNULL const ut8 *bytes, size_t len, RZ_NONNULL PJ *pj) {
 	rz_return_val_if_fail(session && pj && bytes, false);
 
 	if (len == 0) {
@@ -1116,7 +1116,11 @@ RZ_IPI bool rz_frida_backend_mem_write(RzFridaSession *session, ut64 address, co
 		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
 		return false;
 	}
-	rz_hex_bin2str(bytes, (int)len, hex);
+	if (rz_hex_bin2str(bytes, (int)len, hex) < 1) {
+		free(hex);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot encode the bytes to write");
+		return false;
+	}
 
 	PJ *params = pj_new();
 	if (!params) {
@@ -1167,7 +1171,7 @@ RZ_IPI bool rz_frida_backend_mem_write(RzFridaSession *session, ut64 address, co
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the ranges, false on any error.
  */
-RZ_IPI bool rz_frida_backend_ranges(RzFridaSession *session, bool refresh, PJ *pj) {
+RZ_IPI bool rz_frida_backend_ranges(RZ_NONNULL RzFridaSession *session, bool refresh, RZ_NONNULL PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
 	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
@@ -1223,7 +1227,7 @@ RZ_IPI bool rz_frida_backend_ranges(RzFridaSession *session, bool refresh, PJ *p
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the threads, false on any error.
  */
-RZ_IPI bool rz_frida_backend_threads(RzFridaSession *session, PJ *pj) {
+RZ_IPI bool rz_frida_backend_threads(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
 	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
@@ -1263,7 +1267,7 @@ RZ_IPI bool rz_frida_backend_threads(RzFridaSession *session, PJ *pj) {
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the modules, false on any error.
  */
-RZ_IPI bool rz_frida_backend_modules(RzFridaSession *session, bool refresh, PJ *pj) {
+RZ_IPI bool rz_frida_backend_modules(RZ_NONNULL RzFridaSession *session, bool refresh, RZ_NONNULL PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 
 	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
@@ -1361,8 +1365,8 @@ static bool backend_module_query(RzFridaSession *session, const char *kind, cons
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the exports, false on any error.
  */
-RZ_IPI bool rz_frida_backend_exports(RzFridaSession *session, const char *module, PJ *pj) {
-	rz_return_val_if_fail(session && pj, false);
+RZ_IPI bool rz_frida_backend_exports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && module && pj, false);
 	return backend_module_query(session, "exports", module, pj);
 }
 
@@ -1377,8 +1381,8 @@ RZ_IPI bool rz_frida_backend_exports(RzFridaSession *session, const char *module
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the imports, false on any error.
  */
-RZ_IPI bool rz_frida_backend_imports(RzFridaSession *session, const char *module, PJ *pj) {
-	rz_return_val_if_fail(session && pj, false);
+RZ_IPI bool rz_frida_backend_imports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && module && pj, false);
 	return backend_module_query(session, "imports", module, pj);
 }
 
@@ -1393,8 +1397,8 @@ RZ_IPI bool rz_frida_backend_imports(RzFridaSession *session, const char *module
  * \param pj JSON builder that receives the reply envelope.
  * \return true when the agent replied with the symbols, false on any error.
  */
-RZ_IPI bool rz_frida_backend_symbols(RzFridaSession *session, const char *module, PJ *pj) {
-	rz_return_val_if_fail(session && pj, false);
+RZ_IPI bool rz_frida_backend_symbols(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && module && pj, false);
 	return backend_module_query(session, "symbols", module, pj);
 }
 

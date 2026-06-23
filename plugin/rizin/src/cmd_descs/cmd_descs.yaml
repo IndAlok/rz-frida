@@ -74,10 +74,10 @@ commands:
         entries:
           - text: "fridaxj "
             arg_str: "0x1000 64"
-            comment: "Read 64 bytes of target memory as hex"
+            comment: "Read 64 bytes of the target memory as hex"
           - text: "fridawj "
             arg_str: "0x1000 deadbeef"
-            comment: "Write four bytes into target memory"
+            comment: "Write four bytes into the target memory"
       - name: "Runtime info"
         entries:
           - text: "fridaRj"
@@ -372,7 +372,7 @@ commands:
             entries:
               - text: "fridawj "
                 arg_str: "0x1000 deadbeef"
-                comment: "Write the bytes de ad be ef at 0x1000 in the target"
+                comment: "Write the bytes 'de ad be ef' at 0x1000 in the target"
       - name: fridaR
         cname: cmd_fridaR
         summary: "List target memory ranges"

@@ -44,6 +44,10 @@ meson test -C build
 
 ## Commands
 
+All commands are subcommands of `frida` group, run `frida?` in Rizin for the
+built-in help with summary of each. The list below is a quick reference,
+and the sections that follow explain them.
+
 ```
 fridas
 fridasj

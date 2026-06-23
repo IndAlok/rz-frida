@@ -183,10 +183,14 @@ assert.strictEqual(readOob.ok, false, 'an unreadable range is rejected');
 assert.ok(/cannot read/.test(readOob.error), 'the unreadable range is reported');
 
 const readNoAddr = roundtrip({ id: 12, type: 'memRead', params: { size: 4 } });
-assert.strictEqual(readNoAddr.error, 'memRead requires an address', 'a missing address is rejected');
+assert.strictEqual(readNoAddr.error, 'a memory request requires an address', 'a missing address is rejected');
 
 const readBadSize = roundtrip({ id: 13, type: 'memRead', params: { address: '0x1000', size: 0 } });
 assert.strictEqual(readBadSize.error, 'memRead requires a positive integer size', 'a non-positive size is rejected');
+
+assert.deepStrictEqual(roundtrip({ id: 14, type: 'memWrite', params: { address: '0x1018', bytes: '0xcafe' } }),
+	{ id: 14, ok: true, result: { address: '0x1018', size: 2 } },
+	'memWrite strips a 0x prefix from the hex bytes');
 
 assert.deepStrictEqual(roundtrip({ id: 15, type: 'memWrite', params: { address: '0x1010', bytes: 'deadbeef' } }),
 	{ id: 15, ok: true, result: { address: '0x1010', size: 4 } },

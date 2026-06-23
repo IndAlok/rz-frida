@@ -24,6 +24,9 @@ function toHex(buffer) {
 }
 
 function fromHex(text) {
+  if (/^0x/i.test(text)) {
+    text = text.slice(2);
+  }
   if (text.length % 2 !== 0) {
     throw new Error('hex input must have an even length');
   }
@@ -37,15 +40,19 @@ function fromHex(text) {
   return out;
 }
 
-function memRead(params) {
+function requireAddress(params) {
   if (params.address === undefined || params.address === null || params.address === '') {
-    throw new Error('memRead requires an address');
+    throw new Error('a memory request requires an address');
   }
+  return ptr(params.address);
+}
+
+function memRead(params) {
+  const addr = requireAddress(params);
   const size = params.size;
   if (typeof size !== 'number' || !Number.isInteger(size) || size <= 0) {
     throw new Error('memRead requires a positive integer size');
   }
-  const addr = ptr(params.address);
   requireMapped(addr);
   const buffer = addr.readByteArray(size);
   if (buffer === null) {
@@ -56,14 +63,11 @@ function memRead(params) {
 }
 
 function memWrite(params) {
-  if (params.address === undefined || params.address === null || params.address === '') {
-    throw new Error('memWrite requires an address');
-  }
+  const addr = requireAddress(params);
   if (typeof params.bytes !== 'string' || params.bytes.length === 0) {
     throw new Error('memWrite requires a hex byte string');
   }
   const bytes = fromHex(params.bytes);
-  const addr = ptr(params.address);
   requireMapped(addr);
   addr.writeByteArray(bytes);
   return { address: addr.toString(), size: bytes.length };
