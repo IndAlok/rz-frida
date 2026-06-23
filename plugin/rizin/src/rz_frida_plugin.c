@@ -108,17 +108,17 @@ static RzCmdStatus print_uri(const char *uri_string, RzCmdStateOutput *state) {
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridas_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridas_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return print_status(core, state);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridau_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridau_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return print_uri(argv[1], state);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -130,8 +130,8 @@ RZ_IPI RzCmdStatus rz_cmd_fridad_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-static RzCmdStatus run_device_listing(int argc, const char **argv, RzCmdStateOutput *state,
-	RzFridaAction action, bool (*list)(const RzFridaUri *uri, PJ *pj)) {
+static RzCmdStatus run_device_listing(int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state,
+	RzFridaAction action, RZ_NONNULL bool (*list)(const RzFridaUri *uri, PJ *pj)) {
 	rz_return_val_if_fail(argv && state && list, RZ_CMD_STATUS_ERROR);
 
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
@@ -160,17 +160,17 @@ static RzCmdStatus run_device_listing(int argc, const char **argv, RzCmdStateOut
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridap_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_LIST, rz_frida_processes_json);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridaa_handler(RzCore *core, int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridaa_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	return run_device_listing(argc, argv, state, RZ_FRIDA_ACTION_APPS, rz_frida_apps_json);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -200,6 +200,11 @@ RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const
 		return RZ_CMD_STATUS_OK;
 	}
 
+	ut64 timeout = rz_config_get_integer(core->config, "frida.timeout");
+	if (timeout) {
+		rz_frida_session_set_timeout(session, timeout);
+	}
+
 	bool stored = rz_frida_session_set_uri(session, &uri);
 	rz_frida_uri_fini(&uri);
 	if (!stored) {
@@ -218,7 +223,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridao_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -235,7 +240,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridar_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridac_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -261,7 +266,7 @@ static void frida_cancel_on_break(void *user) {
 	rz_frida_session_request_cancel((RzFridaSession *)user);
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -280,7 +285,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridae_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -305,7 +310,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridal_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -324,7 +329,7 @@ RZ_IPI RzCmdStatus rz_cmd_fridai_handler(RzCore *core, RZ_UNUSED int argc, const
 	return RZ_CMD_STATUS_OK;
 }
 
-RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RzCore *core, RZ_UNUSED int argc, const char **argv, RzCmdStateOutput *state) {
+RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
 	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
 	if (state->mode != RZ_OUTPUT_MODE_JSON) {
 		return RZ_CMD_STATUS_WRONG_ARGS;
@@ -338,6 +343,193 @@ RZ_IPI RzCmdStatus rz_cmd_fridam_handler(RzCore *core, RZ_UNUSED int argc, const
 	}
 
 	rz_frida_backend_messages(ctx->session, pj);
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridax_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	ut64 size = rz_num_math(core->num, argv[2]);
+	ut64 maxbytes = rz_config_get_integer(core->config, "frida.mem.max");
+	if (maxbytes && size > maxbytes) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "read size exceeds the frida.mem.max limit");
+		return RZ_CMD_STATUS_OK;
+	}
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	ut64 address = rz_num_math(core->num, argv[1]);
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_mem_read(ctx->session, address, size, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaw_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	const char *hex = argv[2];
+	int hexlen = strlen(hex);
+	if (hexlen == 0 || (hexlen % 2)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "expected an even-length hex byte string");
+		return RZ_CMD_STATUS_OK;
+	}
+	ut64 maxbytes = rz_config_get_integer(core->config, "frida.mem.max");
+	if (maxbytes && (ut64)(hexlen / 2) > maxbytes) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "write size exceeds the frida.mem.max limit");
+		return RZ_CMD_STATUS_OK;
+	}
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	ut8 *bytes = malloc(hexlen / 2);
+	if (!bytes) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot allocate the write buffer");
+		return RZ_CMD_STATUS_OK;
+	}
+	int len = rz_hex_str2bin(hex, bytes);
+	if (len < 1) {
+		free(bytes);
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "invalid hex byte string");
+		return RZ_CMD_STATUS_OK;
+	}
+	ut64 address = rz_num_math(core->num, argv[1]);
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_mem_write(ctx->session, address, bytes, (size_t)len, pj);
+	rz_cons_break_pop();
+	free(bytes);
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaR_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// any arg forces a fresh enumeration instead of cached ranges.
+	bool refresh = (argc > 1) && RZ_STR_ISNOTEMPTY(argv[1]);
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_ranges(ctx->session, refresh, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridat_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_threads(ctx->session, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaM_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// any arg forces fresh enum instead of cached modules.
+	bool refresh = (argc > 1) && RZ_STR_ISNOTEMPTY(argv[1]);
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_modules(ctx->session, refresh, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaE_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_exports(ctx->session, argv[1], pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaI_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_imports(ctx->session, argv[1], pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaS_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_symbols(ctx->session, argv[1], pj);
+	rz_cons_break_pop();
 	return RZ_CMD_STATUS_OK;
 }
 
@@ -373,10 +565,10 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 		return false;
 	}
 
-	// The cmd tree is there in src/cmd_descs/cmd_descs.yaml and emitted by
-	// Rizin's cmd_descs_generate.py into cmd_descs.c. rzshell_cmddescs_init registers
-	// the frida group and its subcmds under the cmd root, and we keep the group
-	// descriptor so fini can detach the whole subtree.
+	// register the configurable limits the cmds read.
+	rz_config_add_integer(core->config, "frida.mem.max", "Maximum bytes per frida memory read or write, 0 for no limit", RZ_FRIDA_MEM_MAX_DEFAULT);
+	rz_config_add_integer(core->config, "frida.timeout", "Frida session and agent request timeout in milliseconds", RZ_FRIDA_DEFAULT_TIMEOUT_MS);
+
 	rz_frida_backend_init();
 
 	*user = ctx;

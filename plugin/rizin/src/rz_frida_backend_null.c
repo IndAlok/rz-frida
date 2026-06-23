@@ -55,6 +55,54 @@ RZ_IPI bool rz_frida_backend_eval(RzFridaSession *session, RZ_UNUSED const char 
 	return false;
 }
 
+RZ_IPI bool rz_frida_backend_mem_read(RZ_NONNULL RzFridaSession *session, RZ_UNUSED ut64 address, RZ_UNUSED ut64 size, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_mem_write(RZ_NONNULL RzFridaSession *session, RZ_UNUSED ut64 address, RZ_NONNULL RZ_UNUSED const ut8 *bytes, RZ_UNUSED size_t len, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_ranges(RZ_NONNULL RzFridaSession *session, RZ_UNUSED bool refresh, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_threads(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_modules(RZ_NONNULL RzFridaSession *session, RZ_UNUSED bool refresh, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_exports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL RZ_UNUSED const char *module, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_imports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL RZ_UNUSED const char *module, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
+RZ_IPI bool rz_frida_backend_symbols(RZ_NONNULL RzFridaSession *session, RZ_NONNULL RZ_UNUSED const char *module, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");
+	return false;
+}
+
 RZ_IPI bool rz_frida_backend_ping(RzFridaSession *session, PJ *pj) {
 	rz_return_val_if_fail(session && pj, false);
 	rz_frida_json_error(pj, RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE, "frida-core support is not enabled");

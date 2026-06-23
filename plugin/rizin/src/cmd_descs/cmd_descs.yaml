@@ -70,6 +70,31 @@ commands:
             comment: "Load and evaluate a JavaScript file in the target process"
           - text: "fridamj"
             comment: "Read buffered agent log, error, and send messages"
+      - name: "Memory access"
+        entries:
+          - text: "fridaxj "
+            arg_str: "0x1000 64"
+            comment: "Read 64 bytes of the target memory as hex"
+          - text: "fridawj "
+            arg_str: "0x1000 deadbeef"
+            comment: "Write four bytes into the target memory"
+      - name: "Runtime info"
+        entries:
+          - text: "fridaRj"
+            comment: "List the target memory ranges"
+          - text: "fridatj"
+            comment: "List the target threads"
+          - text: "fridaMj"
+            comment: "List the target modules"
+          - text: "fridaEj "
+            arg_str: "libc.so"
+            comment: "List the exports of a module"
+          - text: "fridaIj "
+            arg_str: "libc.so"
+            comment: "List the imports of a module"
+          - text: "fridaSj "
+            arg_str: "libc.so"
+            comment: "List the symbols of a module"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -306,3 +331,162 @@ commands:
         modes:
           - RZ_OUTPUT_MODE_JSON
         args: []
+      - name: fridax
+        cname: cmd_fridax
+        summary: "Read target memory"
+        description: >
+          Reads a block of memory from the target process through the rz-frida
+          agent and returns the bytes as a hex string. Loads the agent into the
+          open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+          - name: size
+            type: RZ_CMD_ARG_TYPE_NUM
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaxj "
+                arg_str: "0x1000 64"
+                comment: "Read 64 bytes at 0x1000 from the target process"
+      - name: fridaw
+        cname: cmd_fridaw
+        summary: "Write target memory"
+        description: >
+          Writes a hex byte string into the target process memory through the
+          rz-frida agent and returns the number of bytes written. Loads the
+          agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+          - name: bytes
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridawj "
+                arg_str: "0x1000 deadbeef"
+                comment: "Write the bytes 'de ad be ef' at 0x1000 in the target"
+      - name: fridaR
+        cname: cmd_fridaR
+        summary: "List target memory ranges"
+        description: >
+          Lists the memory ranges of the target process through the rz-frida
+          agent, each with its base, size, protection, and backing file when
+          mapped. The agent caches the list and re-enumerates it after code runs
+          in the target, pass any argument to force a fresh enumeration. Loads
+          the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: refresh
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaRj"
+                comment: "List the cached target memory ranges"
+              - text: "fridaRj "
+                arg_str: "refresh"
+                comment: "Re-enumerate the ranges instead of using the cache"
+      - name: fridat
+        cname: cmd_fridat
+        summary: "List target threads"
+        description: >
+          Lists the threads of the target process through the rz-frida agent,
+          each with its id and state. Loads the agent into the open session on
+          first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+      - name: fridaM
+        cname: cmd_fridaM
+        summary: "List target modules"
+        description: >
+          Lists the modules loaded in the target process through the rz-frida
+          agent, each with its name, base, size, and path. The agent caches the
+          list and re-enumerates it after code runs in the target, pass any
+          argument to force a fresh enumeration. Loads the agent into the open
+          session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: refresh
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaMj"
+                comment: "List the cached target modules"
+              - text: "fridaMj "
+                arg_str: "refresh"
+                comment: "Re-enumerate the modules instead of using the cache"
+      - name: fridaE
+        cname: cmd_fridaE
+        summary: "List target module exports"
+        description: >
+          Lists the exports of a module loaded in the target process through the
+          rz-frida agent, each with its type, name, and address. Loads the agent
+          into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: module
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaEj "
+                arg_str: "libc.so"
+                comment: "List the exports of libc.so in the target"
+      - name: fridaI
+        cname: cmd_fridaI
+        summary: "List target module imports"
+        description: >
+          Lists the imports of a module loaded in the target process through the
+          rz-frida agent, each with its type, name, source module, and address.
+          Loads the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: module
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaIj "
+                arg_str: "libc.so"
+                comment: "List the imports of libc.so in the target"
+      - name: fridaS
+        cname: cmd_fridaS
+        summary: "List target module symbols"
+        description: >
+          Lists the symbols of a module loaded in the target process through the
+          rz-frida agent, each with its name, address, and type. The list is
+          empty for a module that carries no symbol table. Loads the agent into
+          the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: module
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaSj "
+                arg_str: "libc.so"
+                comment: "List the symbols of libc.so in the target"
