@@ -7,7 +7,10 @@ let moduleCache = null;
 
 const breakpoints = new Map();
 let nextBreakpointId = 1;
-const parked = [];
+const stopped = new Map(); // tid -> {bp, address, context} per thread parked at a bp, in stop order.
+const watchpoints = new Map(); // slot -> {slot, address, size, conditions} per hardware watchpoint.
+const HW_WATCHPOINT_SLOTS = 4; // default, host can override it per req
+let exceptionHandlerReady = false;
 
 function agentInfo() {
   return {
@@ -187,22 +190,24 @@ function bpSet(params) {
   const id = nextBreakpointId++;
   const listener = Interceptor.attach(addr, {
     onEnter() {
-      const tid = Process.getCurrentThreadId();
-      send({ type: 'frida.bp', bp: id, address: key, threadId: tid, context: serialize(this.context) });
-      parked.push(tid);
-      let resumed = false;
-      do {
-        const op = recv('frida.cont.' + tid, function (message) {
-          resumed = true;
-          if (typeof message.id === 'number') {
-            send({ id: message.id, ok: true, result: { resumed: true, threadId: tid } });
-          }
-        });
-        op.wait();
-      } while (!resumed);
-      const at = parked.indexOf(tid);
-      if (at !== -1) {
-        parked.splice(at, 1);
+      try {
+        const tid = Process.getCurrentThreadId();
+        // erialized context can exceed the arm64 send limit, so keeping it empty.
+        send({ type: 'frida.bp', bp: id, address: key, threadId: tid, context: {} });
+        stopped.set(tid, { bp: id, address: key, context: this.context });
+        let resumed = false;
+        do {
+          const op = recv('frida.cont.' + tid, function (message) {
+            resumed = true;
+            if (typeof message.id === 'number') {
+              send({ id: message.id, ok: true, result: { resumed: true, threadId: tid } });
+            }
+          });
+          op.wait();
+        } while (!resumed);
+        stopped.delete(tid);
+      } catch (e) {
+        send({ type: 'frida.bp.err', error: e && e.message ? e.message : String(e) });
       }
     }
   });
@@ -239,7 +244,198 @@ function bpRemove(params) {
 }
 
 function parkedThreads() {
-  return { parked: parked.slice(), recent: parked.length ? parked[parked.length - 1] : null };
+  const ids = Array.from(stopped.keys());
+  return { parked: ids, recent: ids.length ? ids[ids.length - 1] : null };
+}
+
+// resolve the bp stop a reg req targets, or fail.
+function stoppedThread(params) {
+  if (params.threadId === undefined || params.threadId === null) {
+    throw new Error('a register request requires a thread id');
+  }
+  const entry = stopped.get(params.threadId);
+  if (!entry) {
+    throw new Error('thread ' + params.threadId + ' is not stopped at a breakpoint');
+  }
+  return entry;
+}
+
+function regRead(params) {
+  const entry = stoppedThread(params);
+  return { threadId: params.threadId, bp: entry.bp, address: entry.address };
+}
+
+function regWrite(params) {
+  const entry = stoppedThread(params);
+  if (typeof params.register !== 'string' || params.register.length === 0) {
+    throw new Error('a register write requires a register name');
+  }
+  if (params.value === undefined || params.value === null || params.value === '') {
+    throw new Error('a register write requires a value');
+  }
+  // own property check only, so inherited names arent written.
+  const snapshot = serialize(entry.context);
+  if (!Object.prototype.hasOwnProperty.call(snapshot, params.register)) {
+    throw new Error('no register named ' + params.register);
+  }
+  entry.context[params.register] = ptr(params.value);
+  return { threadId: params.threadId, register: params.register, value: entry.context[params.register].toString() };
+}
+
+function watchpointConditions(value) {
+  if (value === undefined || value === null || value === '') {
+    return 'rw';
+  }
+  if (value !== 'r' && value !== 'w' && value !== 'rw') {
+    throw new Error('watchpoint conditions must be r, w, or rw');
+  }
+  return value;
+}
+
+// arm/clear a debug slot on every current thread, tolerating refusing ones.
+function eachThreadWatchpoint(slot, addr, size, conditions) {
+  const threads = Process.enumerateThreads();
+  let applied = 0;
+  for (let i = 0; i < threads.length; i++) {
+    try {
+      if (addr === null) {
+        threads[i].unsetHardwareWatchpoint(slot);
+      } else {
+        threads[i].setHardwareWatchpoint(slot, addr, size, conditions);
+      }
+      applied++;
+    } catch (e) {
+      // skip it, wont take slot.
+    }
+  }
+  return applied;
+}
+
+function clearWatchpoint(wp) {
+  eachThreadWatchpoint(wp.slot, null, 0, null);
+  watchpoints.delete(wp.slot);
+}
+
+// install process wide handler lazily on the first watchpoint.
+function ensureExceptionHandler() {
+  if (exceptionHandlerReady) {
+    return;
+  }
+  Process.setExceptionHandler(function (details) {
+    if (watchpoints.size === 0) {
+      return false;
+    }
+    var handled = details.type === 'breakpoint' || details.type === 'single-step';
+    if (!handled) {
+      // just to log unexpected types the arm64 hw wp might produce.
+      send({ type: 'frida.exc', exType: details.type, exAddr: details.address ? details.address.toString() : null,
+        hasMem: details.memory ? 1 : 0 });
+      return false;
+    }
+    const access = details.memory || null;
+    var accessAddr = access && access.address ? access.address : null;
+    if (!accessAddr && details.address) {
+      accessAddr = details.address;
+    }
+    var fired = null;
+    if (accessAddr) {
+      watchpoints.forEach(function (wp) {
+        const base = ptr(wp.address);
+        if (!fired && accessAddr.compare(base) >= 0 && accessAddr.compare(base.add(wp.size)) < 0) {
+          fired = wp;
+        }
+      });
+      if (!fired) {
+        // a trap on addr we arent watching is not ours.
+        return false;
+      }
+    }
+    const watched = [];
+    watchpoints.forEach(function (wp) {
+      watched.push({ slot: wp.slot, address: wp.address, size: wp.size, conditions: wp.conditions });
+    });
+    // disarm before resuming so instruction doesnt retrap.
+    if (fired) {
+      clearWatchpoint(fired);
+    } else {
+      watchpoints.forEach(function (wp) { eachThreadWatchpoint(wp.slot, null, 0, null); });
+      watchpoints.clear();
+    }
+    let wpCtx = {};
+    try { wpCtx = serialize(details.context); } catch (_) { /* keep empty */ }
+    send({
+      type: 'frida.wp',
+      threadId: Process.getCurrentThreadId(),
+      pc: details.context && details.context.pc ? details.context.pc.toString() : null,
+      operation: access ? access.operation : null,
+      address: accessAddr ? accessAddr.toString() : null,
+      watched: watched,
+      context: wpCtx
+    });
+    return true;
+  });
+  exceptionHandlerReady = true;
+}
+
+function wpSet(params) {
+  const addr = requireAddress(params);
+  const key = addr.toString();
+  let found = false;
+  watchpoints.forEach(function (wp) { if (wp.address === key) { found = true; } });
+  if (found) {
+    throw new Error('a watchpoint already exists at ' + key);
+  }
+  let size = params.size;
+  if (size === undefined || size === null) {
+    size = Process.pointerSize;
+  }
+  if (typeof size !== 'number' || !Number.isInteger(size) || size <= 0) {
+    throw new Error('a watchpoint requires a positive integer size');
+  }
+  const conditions = watchpointConditions(params.conditions);
+  const maxSlots = (typeof params.slots === 'number' && params.slots > 0) ? params.slots : HW_WATCHPOINT_SLOTS;
+  let slot = -1;
+  for (let i = 0; i < maxSlots; i++) {
+    if (!watchpoints.has(i)) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot === -1) {
+    throw new Error('no free hardware watchpoint slot');
+  }
+  ensureExceptionHandler();
+  if (eachThreadWatchpoint(slot, addr, size, conditions) === 0) {
+    throw new Error('no thread accepted the hardware watchpoint');
+  }
+  watchpoints.set(slot, { slot: slot, address: key, size: size, conditions: conditions });
+  return { slot: slot, address: key, size: size, conditions: conditions };
+}
+
+function wpList() {
+  const list = [];
+  watchpoints.forEach(function (wp) {
+    list.push({ slot: wp.slot, address: wp.address, size: wp.size, conditions: wp.conditions });
+  });
+  return { watchpoints: list };
+}
+
+function wpRemove(params) {
+  if (params && params.address === '*') {
+    const removed = watchpoints.size;
+    watchpoints.forEach(function (wp) { eachThreadWatchpoint(wp.slot, null, 0, null); });
+    watchpoints.clear();
+    return { removed: removed };
+  }
+  const addr = requireAddress(params);
+  const key = addr.toString();
+  let found = null;
+  watchpoints.forEach(function (wp) { if (wp.address === key) { found = wp; } });
+  if (!found) {
+    throw new Error('no watchpoint at ' + key);
+  }
+  clearWatchpoint(found);
+  return { address: key, removed: 1 };
 }
 
 function invalidateCaches() {
@@ -287,6 +483,16 @@ function handleRequest(request) {
       return bpRemove(params);
     case 'bpParked':
       return parkedThreads();
+    case 'regRead':
+      return regRead(params);
+    case 'regWrite':
+      return regWrite(params);
+    case 'wpSet':
+      return wpSet(params);
+    case 'wpList':
+      return wpList();
+    case 'wpRemove':
+      return wpRemove(params);
     default:
       throw new Error('unknown request type: ' + String(type));
   }

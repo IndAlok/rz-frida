@@ -34,12 +34,16 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridab"), "fridab command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridab-"), "fridab- command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridag"), "fridag command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaB"), "fridaB command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaW"), "fridaW command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaW-"), "fridaW- command is registered");
 	mu_end;
 }
 
 static bool test_config_defaults(RzCore *core) {
 	mu_assert_true(rz_config_get_i(core->config, "frida.mem.max") == RZ_FRIDA_MEM_MAX_DEFAULT, "frida.mem.max default is registered");
 	mu_assert_true(rz_config_get_i(core->config, "frida.timeout") == RZ_FRIDA_DEFAULT_TIMEOUT_MS, "frida.timeout default is registered");
+	mu_assert_true(rz_config_get_i(core->config, "frida.hw.watchpoints") == RZ_FRIDA_HW_WATCHPOINTS_DEFAULT, "frida.hw.watchpoints default is registered");
 	mu_end;
 }
 
@@ -335,6 +339,56 @@ static bool test_continue_without_session(RzCore *core) {
 	mu_end;
 }
 
+static bool test_reg_read_without_session(RzCore *core) {
+	char *reg = rz_core_cmd_str(core, "fridaBj 4242");
+	mu_assert_notnull(reg, "register read command returns output");
+	mu_assert_streq(reg,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"register read without an open session reports the precondition failure");
+	RZ_FREE(reg);
+	mu_end;
+}
+
+static bool test_reg_write_without_session(RzCore *core) {
+	char *reg = rz_core_cmd_str(core, "fridaBj 4242 pc 0x401000");
+	mu_assert_notnull(reg, "register write command returns output");
+	mu_assert_streq(reg,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"register write without an open session reports the precondition failure");
+	RZ_FREE(reg);
+	mu_end;
+}
+
+static bool test_wp_set_without_session(RzCore *core) {
+	char *wp = rz_core_cmd_str(core, "fridaWj 0x1000 8 w");
+	mu_assert_notnull(wp, "watchpoint set command returns output");
+	mu_assert_streq(wp,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"watchpoint set without an open session reports the precondition failure");
+	RZ_FREE(wp);
+	mu_end;
+}
+
+static bool test_wp_list_without_session(RzCore *core) {
+	char *wp = rz_core_cmd_str(core, "fridaWj");
+	mu_assert_notnull(wp, "watchpoint list command returns output");
+	mu_assert_streq(wp,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"watchpoint list without an open session reports the precondition failure");
+	RZ_FREE(wp);
+	mu_end;
+}
+
+static bool test_wp_remove_without_session(RzCore *core) {
+	char *wp = rz_core_cmd_str(core, "fridaW-j 0x1000");
+	mu_assert_notnull(wp, "watchpoint remove command returns output");
+	mu_assert_streq(wp,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"watchpoint remove without an open session reports the precondition failure");
+	RZ_FREE(wp);
+	mu_end;
+}
+
 static bool test_invalid_open_uri(RzCore *core) {
 	char *open = rz_core_cmd_str(core, "fridaoj gdb://attach/local//1234");
 	mu_assert_notnull(open, "open command returns output");
@@ -412,6 +466,9 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridab"), "fridab command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridab-"), "fridab- command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridag"), "fridag command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaB"), "fridaB command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaW"), "fridaW command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaW-"), "fridaW- command is removed");
 	mu_end;
 }
 
@@ -453,6 +510,11 @@ int all_tests(void) {
 	mu_run_test(test_bp_list_without_session, core);
 	mu_run_test(test_bp_remove_without_session, core);
 	mu_run_test(test_continue_without_session, core);
+	mu_run_test(test_reg_read_without_session, core);
+	mu_run_test(test_reg_write_without_session, core);
+	mu_run_test(test_wp_set_without_session, core);
+	mu_run_test(test_wp_list_without_session, core);
+	mu_run_test(test_wp_remove_without_session, core);
 	mu_run_test(test_invalid_open_uri, core);
 	mu_run_test(test_open_command, core);
 	mu_run_test(test_open_usb_command, core);

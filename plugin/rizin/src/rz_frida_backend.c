@@ -1644,6 +1644,285 @@ RZ_IPI bool rz_frida_backend_continue(RZ_NONNULL RzFridaSession *session, RZ_NUL
 }
 
 /**
+ * \brief Read the register context of a thread parked at a breakpoint through the agent.
+ *
+ * Loads the agent on first use and asks for the saved register context of the
+ * thread stopped at a breakpoint. Writes an ok:true envelope carrying the thread
+ * id, the breakpoint it stopped at, and the registers, or an ok:false envelope
+ * when the thread is not parked, on timeout, cancel, or an agent error. When the
+ * plugin is built without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param thread_id Id of the parked thread whose registers are read.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the registers, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_reg_read(RZ_NONNULL RzFridaSession *session, ut64 thread_id, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	pj_o(params);
+	pj_kn(params, "threadId", thread_id);
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "regRead", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief Write a register of a thread parked at a breakpoint through the agent.
+ *
+ * Loads the agent on first use and sets \p reg to \p value on the thread stopped
+ * at a breakpoint. The write lands on the saved register context and takes effect
+ * when the thread is continued. Writes an ok:true envelope carrying the thread id,
+ * register, and new value, or an ok:false envelope when the thread is not parked,
+ * the register is unknown, on timeout, cancel, or an agent error. When the plugin
+ * is built without frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param thread_id Id of the parked thread whose register is written.
+ * \param reg Name of the register to set.
+ * \param value Canonical value string to set the register to.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent confirmed the write, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_reg_write(RZ_NONNULL RzFridaSession *session, ut64 thread_id, RZ_NONNULL const char *reg, RZ_NONNULL const char *value, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && reg && value && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	pj_o(params);
+	pj_kn(params, "threadId", thread_id);
+	pj_ks(params, "register", reg);
+	pj_ks(params, "value", value);
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "regWrite", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief Set a hardware watchpoint on a target address through the agent.
+ *
+ * Loads the agent on first use and arms a hardware watchpoint on every target
+ * thread, covering the access in \p conditions ("r", "w", or "rw"). An access
+ * later arrives as an asynchronous frida.wp message in the buffer drained by
+ * \ref rz_frida_backend_messages, carrying the faulting thread, program counter,
+ * and register context, and the watchpoint disarms itself on that hit. Writes an
+ * ok:true envelope with the slot, address, size, and conditions, or an ok:false
+ * envelope on timeout, cancel, or an agent error. When the plugin is built without
+ * frida-core, a self-contained implementation reports
+ * \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param address Target address to watch.
+ * \param size Number of bytes to watch, 0 to default to the pointer size.
+ * \param conditions Access to trap on as "r", "w", or "rw", or NULL for "rw".
+ * \param slots Maximum hardware slots the agent may use, 0 for its default.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent confirmed the watchpoint, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_wp_set(RZ_NONNULL RzFridaSession *session, ut64 address, ut64 size, RZ_NULLABLE const char *conditions, ut64 slots, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	char address_str[32];
+	rz_strf(address_str, "0x%" PFMT64x, address);
+	pj_o(params);
+	pj_ks(params, "address", address_str);
+	if (size) {
+		pj_kn(params, "size", size);
+	}
+	if (RZ_STR_ISNOTEMPTY(conditions)) {
+		pj_ks(params, "conditions", conditions);
+	}
+	if (slots) {
+		pj_kn(params, "slots", slots);
+	}
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "wpSet", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief List the hardware watchpoints set through the agent.
+ *
+ * Loads the agent on first use, sends a wpList request, and writes an ok:true
+ * envelope carrying the watchpoints with their slot, address, size, and
+ * conditions, or an ok:false envelope on timeout, cancel, or an agent error.
+ * When the plugin is built without frida-core, a self-contained implementation
+ * reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied with the watchpoints, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_wp_list(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "wpList", NULL, &response, &fail_code, &fail_msg);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
+ * \brief Remove a hardware watchpoint set through the agent.
+ *
+ * Loads the agent on first use and disarms the watchpoint at \p address on every
+ * thread, or every watchpoint when \p address is "*". Writes an ok:true envelope
+ * carrying the number removed, or an ok:false envelope on timeout, cancel, or an
+ * agent error. When the plugin is built without frida-core, a self-contained
+ * implementation reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param address Canonical address string to remove, or "*" for all.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent confirmed the removal, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_wp_remove(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *address, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && address && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	pj_o(params);
+	pj_ks(params, "address", address);
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "wpRemove", params_json, &response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
  * \brief Ping the agent loaded in the target and report what it sees.
  *
  * Loads the agent on first use, sends a ping request, and writes an ok:true

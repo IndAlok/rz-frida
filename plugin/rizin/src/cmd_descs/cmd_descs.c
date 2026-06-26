@@ -23,6 +23,9 @@ static const RzCmdDescDetail cmd_fridaS_details[2];
 static const RzCmdDescDetail cmd_fridab_details[2];
 static const RzCmdDescDetail cmd_fridab_minus_details[2];
 static const RzCmdDescDetail cmd_fridag_details[2];
+static const RzCmdDescDetail cmd_fridaB_details[2];
+static const RzCmdDescDetail cmd_fridaW_details[2];
+static const RzCmdDescDetail cmd_fridaW_minus_details[2];
 static const RzCmdDescDetail cmd_frida_details[11];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
@@ -40,6 +43,9 @@ static const RzCmdDescArg cmd_fridaS_args[2];
 static const RzCmdDescArg cmd_fridab_args[2];
 static const RzCmdDescArg cmd_fridab_minus_args[2];
 static const RzCmdDescArg cmd_fridag_args[2];
+static const RzCmdDescArg cmd_fridaB_args[4];
+static const RzCmdDescArg cmd_fridaW_args[4];
+static const RzCmdDescArg cmd_fridaW_minus_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -108,6 +114,11 @@ static const RzCmdDescDetailEntry cmd_frida_Debugging_detail_entries[] = {
 	{ .text = "fridabj", .arg_str = NULL, .comment = "List the breakpoints that are set" },
 	{ .text = "fridab-j ", .arg_str = "0x1000", .comment = "Remove a breakpoint, or use * for all" },
 	{ .text = "fridagj", .arg_str = NULL, .comment = "Continue a thread parked at a breakpoint" },
+	{ .text = "fridaBj ", .arg_str = "4242", .comment = "Read the registers of the thread stopped at a breakpoint" },
+	{ .text = "fridaBj ", .arg_str = "4242 pc 0x401000", .comment = "Set a register on the stopped thread before continuing" },
+	{ .text = "fridaWj ", .arg_str = "0x1000 8 w", .comment = "Watch 8 bytes for writes with a hardware watchpoint" },
+	{ .text = "fridaWj", .arg_str = NULL, .comment = "List the hardware watchpoints that are set" },
+	{ .text = "fridaW-j ", .arg_str = "0x1000", .comment = "Remove a watchpoint, or use * for all" },
 	{ 0 },
 };
 static const RzCmdDescDetail cmd_frida_details[] = {
@@ -613,6 +624,106 @@ static const RzCmdDescHelp cmd_fridag_help = {
 	.args = cmd_fridag_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridaB_Examples_detail_entries[] = {
+	{ .text = "fridaBj ", .arg_str = "4242", .comment = "Read the registers of the thread with id 4242" },
+	{ .text = "fridaBj ", .arg_str = "4242 pc 0x401000", .comment = "Set pc on thread 4242 before continuing it with fridagj" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaB_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaB_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaB_args[] = {
+	{
+		.name = "thread",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+
+	},
+	{
+		.name = "register",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.optional = true,
+
+	},
+	{
+		.name = "value",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaB_help = {
+	.summary = "Read or write registers at a breakpoint stop",
+	.description = "Reads the saved register context of a thread parked at a breakpoint in the target process through the rz-frida agent, or sets one register when a register name and value follow the thread id. A write lands on the saved context and takes effect when the thread is continued with fridag. Loads the agent into the open session on first use.",
+	.details = cmd_fridaB_details,
+	.args = cmd_fridaB_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaW_Examples_detail_entries[] = {
+	{ .text = "fridaWj ", .arg_str = "0x1000", .comment = "Watch the pointer-sized word at 0x1000 for reads and writes" },
+	{ .text = "fridaWj ", .arg_str = "0x1000 8 w", .comment = "Watch 8 bytes at 0x1000 for writes only" },
+	{ .text = "fridaWj", .arg_str = NULL, .comment = "List the watchpoints that are set" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaW_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaW_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaW_args[] = {
+	{
+		.name = "address",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+		.optional = true,
+
+	},
+	{
+		.name = "size",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+		.optional = true,
+
+	},
+	{
+		.name = "conditions",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaW_help = {
+	.summary = "Set or list hardware watchpoints",
+	.description = "Sets a hardware watchpoint on an address in the target process through the rz-frida agent, or lists the watchpoints that are set when called with no argument. The optional size defaults to the pointer size and the optional conditions are r, w, or rw (default rw). The watchpoint is armed on every target thread, an access is reported asynchronously through fridam as a frida.wp event with the faulting thread, program counter, and register context, and the watchpoint disarms itself on that hit. The CPU has a small fixed number of watchpoint slots. Loads the agent into the open session on first use.",
+	.details = cmd_fridaW_details,
+	.args = cmd_fridaW_args,
+};
+
+static const RzCmdDescDetailEntry cmd_fridaW_minus_Examples_detail_entries[] = {
+	{ .text = "fridaW-j ", .arg_str = "0x1000", .comment = "Remove the watchpoint at 0x1000" },
+	{ .text = "fridaW-j ", .arg_str = "*", .comment = "Remove every watchpoint" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaW_minus_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaW_minus_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaW_minus_args[] = {
+	{
+		.name = "address",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaW_minus_help = {
+	.summary = "Remove hardware watchpoints",
+	.description = "Removes the hardware watchpoint at an address in the target process through the rz-frida agent, or every watchpoint when the address is *. Loads the agent into the open session on first use.",
+	.details = cmd_fridaW_minus_details,
+	.args = cmd_fridaW_minus_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -687,5 +798,14 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridag_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridag", RZ_OUTPUT_MODE_JSON, rz_cmd_fridag_handler, &cmd_fridag_help);
 	rz_warn_if_fail(cmd_fridag_cd);
+
+	RzCmdDesc *cmd_fridaB_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaB", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaB_handler, &cmd_fridaB_help);
+	rz_warn_if_fail(cmd_fridaB_cd);
+
+	RzCmdDesc *cmd_fridaW_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaW", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaW_handler, &cmd_fridaW_help);
+	rz_warn_if_fail(cmd_fridaW_cd);
+
+	RzCmdDesc *cmd_fridaW_minus_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaW-", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaW_minus_handler, &cmd_fridaW_minus_help);
+	rz_warn_if_fail(cmd_fridaW_minus_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

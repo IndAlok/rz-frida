@@ -107,6 +107,20 @@ commands:
             comment: "Remove a breakpoint, or use * for all"
           - text: "fridagj"
             comment: "Continue a thread parked at a breakpoint"
+          - text: "fridaBj "
+            arg_str: "4242"
+            comment: "Read the registers of the thread stopped at a breakpoint"
+          - text: "fridaBj "
+            arg_str: "4242 pc 0x401000"
+            comment: "Set a register on the stopped thread before continuing"
+          - text: "fridaWj "
+            arg_str: "0x1000 8 w"
+            comment: "Watch 8 bytes for writes with a hardware watchpoint"
+          - text: "fridaWj"
+            comment: "List the hardware watchpoints that are set"
+          - text: "fridaW-j "
+            arg_str: "0x1000"
+            comment: "Remove a watchpoint, or use * for all"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -572,3 +586,92 @@ commands:
               - text: "fridagj "
                 arg_str: "4242"
                 comment: "Continue the thread with id 4242"
+      - name: fridaB
+        cname: cmd_fridaB
+        summary: "Read or write registers at a breakpoint stop"
+        description: >
+          Reads the saved register context of a thread parked at a breakpoint in
+          the target process through the rz-frida agent, or sets one register when
+          a register name and value follow the thread id. A write lands on the
+          saved context and takes effect when the thread is continued with fridag.
+          Loads the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: thread
+            type: RZ_CMD_ARG_TYPE_NUM
+          - name: register
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+          - name: value
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaBj "
+                arg_str: "4242"
+                comment: "Read the registers of the thread with id 4242"
+              - text: "fridaBj "
+                arg_str: "4242 pc 0x401000"
+                comment: "Set pc on thread 4242 before continuing it with fridagj"
+      - name: fridaW
+        cname: cmd_fridaW
+        summary: "Set or list hardware watchpoints"
+        description: >
+          Sets a hardware watchpoint on an address in the target process through
+          the rz-frida agent, or lists the watchpoints that are set when called
+          with no argument. The optional size defaults to the pointer size and the
+          optional conditions are r, w, or rw (default rw). The watchpoint is armed
+          on every target thread, an access is reported asynchronously through
+          fridam as a frida.wp event with the faulting thread, program counter, and
+          register context, and the watchpoint disarms itself on that hit. The CPU
+          has a small fixed number of watchpoint slots. Loads the agent into the
+          open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+          - name: size
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+          - name: conditions
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaWj "
+                arg_str: "0x1000"
+                comment: "Watch the pointer-sized word at 0x1000 for reads and writes"
+              - text: "fridaWj "
+                arg_str: "0x1000 8 w"
+                comment: "Watch 8 bytes at 0x1000 for writes only"
+              - text: "fridaWj"
+                comment: "List the watchpoints that are set"
+      - name: fridaW-
+        cname: cmd_fridaW_minus
+        summary: "Remove hardware watchpoints"
+        description: >
+          Removes the hardware watchpoint at an address in the target process
+          through the rz-frida agent, or every watchpoint when the address is *.
+          Loads the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaW-j "
+                arg_str: "0x1000"
+                comment: "Remove the watchpoint at 0x1000"
+              - text: "fridaW-j "
+                arg_str: "*"
+                comment: "Remove every watchpoint"

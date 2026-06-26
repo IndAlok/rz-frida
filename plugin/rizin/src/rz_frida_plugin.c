@@ -610,6 +610,88 @@ RZ_IPI RzCmdStatus rz_cmd_fridag_handler(RZ_NONNULL RzCore *core, int argc, RZ_N
 	return RZ_CMD_STATUS_OK;
 }
 
+RZ_IPI RzCmdStatus rz_cmd_fridaB_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	ut64 thread_id = rz_num_math(core->num, argv[1]);
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	if (argc > 3) {
+		char value_str[32];
+		rz_strf(value_str, "0x%" PFMT64x, rz_num_math(core->num, argv[3]));
+		rz_frida_backend_reg_write(ctx->session, thread_id, argv[2], value_str, pj);
+	} else if (argc > 2) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "a register write needs a value");
+	} else {
+		rz_frida_backend_reg_read(ctx->session, thread_id, pj);
+	}
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaW_handler(RZ_NONNULL RzCore *core, int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	// addr sets watchpoint, no arg lists current wps.
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	if (argc > 1 && RZ_STR_ISNOTEMPTY(argv[1])) {
+		ut64 address = rz_num_math(core->num, argv[1]);
+		ut64 size = (argc > 2) ? rz_num_math(core->num, argv[2]) : 0;
+		const char *conditions = (argc > 3) ? argv[3] : NULL;
+		ut64 slots = rz_config_get_integer(core->config, "frida.hw.watchpoints");
+		rz_frida_backend_wp_set(ctx->session, address, size, conditions, slots, pj);
+	} else {
+		rz_frida_backend_wp_list(ctx->session, pj);
+	}
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
+RZ_IPI RzCmdStatus rz_cmd_fridaW_minus_handler(RZ_NONNULL RzCore *core, RZ_UNUSED int argc, RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+
+	const char *target = argv[1];
+	char address_str[32];
+	if (!RZ_STR_EQ(target, "*")) {
+		ut64 address = rz_num_math(core->num, target);
+		rz_strf(address_str, "0x%" PFMT64x, address);
+		target = address_str;
+	}
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_wp_remove(ctx->session, target, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }
@@ -645,6 +727,7 @@ static bool rz_frida_plugin_init(RzCore *core, void **user) {
 	// register the configurable limits the cmds read.
 	rz_config_add_integer(core->config, "frida.mem.max", "Maximum bytes per frida memory read or write, 0 for no limit", RZ_FRIDA_MEM_MAX_DEFAULT);
 	rz_config_add_integer(core->config, "frida.timeout", "Frida session and agent request timeout in milliseconds", RZ_FRIDA_DEFAULT_TIMEOUT_MS);
+	rz_config_add_integer(core->config, "frida.hw.watchpoints", "Maximum hardware watchpoint slots fridaW may use, capped by the CPU", RZ_FRIDA_HW_WATCHPOINTS_DEFAULT);
 
 	rz_frida_backend_init();
 
