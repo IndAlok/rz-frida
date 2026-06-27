@@ -105,8 +105,8 @@ if python.found()
     'rzfrida_agent.h',
     input: 'agent/rzfrida_agent.js',
     output: 'rzfrida_agent.h',
-    command: [python, rz_frida_agent_embed, '@INPUT@', '@OUTPUT@'],
-    depend_files: rz_frida_agent_embed,
+    command: [python, rz_frida_agent_embed, '@OUTPUT@'],
+    depend_files: [rz_frida_agent_embed, 'agent/entry.js', 'agent/package.json'],
   )
 endif
 

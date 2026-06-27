@@ -11,6 +11,30 @@ const stopped = new Map(); // tid -> {bp, address, context} per thread parked at
 const watchpoints = new Map(); // slot -> {slot, address, size, conditions} per hardware watchpoint.
 const HW_WATCHPOINT_SLOTS = 4; // default, host can override it per req
 let exceptionHandlerReady = false;
+const loaderIds = new Map(); // classloader wrapper -> stable integer id
+let nextLoaderId = 1;
+
+function javaAvailable() {
+  return { available: typeof Java !== 'undefined' && Java.available };
+}
+
+function loaderList() {
+  if (typeof Java === 'undefined' || !Java.available) {
+    throw new Error('Java VM is not available');
+  }
+  const loaders = [];
+  Java.performNow(function () {
+    const list = Java.enumerateClassLoadersSync();
+    for (let i = 0; i < list.length; i++) {
+      const l = list[i];
+      if (!loaderIds.has(l)) {
+        loaderIds.set(l, nextLoaderId++);
+      }
+      loaders.push({ id: loaderIds.get(l), type: l.getClass().getName(), toString: l.toString() });
+    }
+  });
+  return { loaders: loaders };
+}
 
 function agentInfo() {
   return {
@@ -487,6 +511,10 @@ function handleRequest(request) {
       return wpList();
     case 'wpRemove':
       return wpRemove(params);
+    case 'javaAvailable':
+      return javaAvailable();
+    case 'loaderList':
+      return loaderList();
     default:
       throw new Error('unknown request type: ' + String(type));
   }

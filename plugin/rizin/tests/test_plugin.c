@@ -37,6 +37,8 @@ static bool test_plugin_registration(RzCore *core) {
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaB"), "fridaB command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaW"), "fridaW command is registered");
 	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaW-"), "fridaW- command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaJ"), "fridaJ command is registered");
+	mu_assert_notnull(rz_cmd_get_desc(core->rcmd, "fridaL"), "fridaL command is registered");
 	mu_end;
 }
 
@@ -389,6 +391,26 @@ static bool test_wp_remove_without_session(RzCore *core) {
 	mu_end;
 }
 
+static bool test_java_available_without_session(RzCore *core) {
+	char *j = rz_core_cmd_str(core, "fridaJj");
+	mu_assert_notnull(j, "java available command returns output");
+	mu_assert_streq(j,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"java available without an open session reports the precondition failure");
+	RZ_FREE(j);
+	mu_end;
+}
+
+static bool test_loaders_without_session(RzCore *core) {
+	char *l = rz_core_cmd_str(core, "fridaLj");
+	mu_assert_notnull(l, "loader list command returns output");
+	mu_assert_streq(l,
+		"{\"ok\":false,\"error\":{\"code\":\"invalid_target\",\"message\":\"no session is open\"}}\n",
+		"loader list without an open session reports the precondition failure");
+	RZ_FREE(l);
+	mu_end;
+}
+
 static bool test_invalid_open_uri(RzCore *core) {
 	char *open = rz_core_cmd_str(core, "fridaoj gdb://attach/local//1234");
 	mu_assert_notnull(open, "open command returns output");
@@ -469,6 +491,8 @@ static bool test_plugin_unregistration(RzCore *core) {
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaB"), "fridaB command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaW"), "fridaW command is removed");
 	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaW-"), "fridaW- command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaJ"), "fridaJ command is removed");
+	mu_assert_null(rz_cmd_get_desc(core->rcmd, "fridaL"), "fridaL command is removed");
 	mu_end;
 }
 
@@ -515,6 +539,8 @@ int all_tests(void) {
 	mu_run_test(test_wp_set_without_session, core);
 	mu_run_test(test_wp_list_without_session, core);
 	mu_run_test(test_wp_remove_without_session, core);
+	mu_run_test(test_java_available_without_session, core);
+	mu_run_test(test_loaders_without_session, core);
 	mu_run_test(test_invalid_open_uri, core);
 	mu_run_test(test_open_command, core);
 	mu_run_test(test_open_usb_command, core);

@@ -675,3 +675,25 @@ commands:
               - text: "fridaW-j "
                 arg_str: "*"
                 comment: "Remove every watchpoint"
+      - name: fridaJ
+        cname: cmd_fridaJ
+        summary: "Check whether the Android Java VM is reachable"
+        description: >
+          Checks whether the Java VM (ART) is available in the target process and
+          reports whether Java instrumentation is possible. Requires an Android
+          target with the frida-java-bridge bundled into the agent.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+      - name: fridaL
+        cname: cmd_fridaL
+        summary: "Enumerate Java classloaders in the target"
+        description: >
+          Enumerates the classloaders in the target process through the rz-frida
+          agent and assigns each one a stable integer id for the current session.
+          Requires an Android target with the Java VM available.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []

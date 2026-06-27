@@ -724,6 +724,24 @@ static const RzCmdDescHelp cmd_fridaW_minus_help = {
 	.args = cmd_fridaW_minus_args,
 };
 
+static const RzCmdDescArg cmd_fridaJ_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaJ_help = {
+	.summary = "Check whether the Android Java VM is reachable",
+	.description = "Checks whether the Java VM (ART) is available in the target process and reports whether Java instrumentation is possible. Requires an Android target with the frida-java-bridge bundled into the agent.",
+	.args = cmd_fridaJ_args,
+};
+
+static const RzCmdDescArg cmd_fridaL_args[] = {
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaL_help = {
+	.summary = "Enumerate Java classloaders in the target",
+	.description = "Enumerates the classloaders in the target process through the rz-frida agent and assigns each one a stable integer id for the current session. Requires an Android target with the Java VM available.",
+	.args = cmd_fridaL_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -807,5 +825,11 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridaW_minus_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaW-", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaW_minus_handler, &cmd_fridaW_minus_help);
 	rz_warn_if_fail(cmd_fridaW_minus_cd);
+
+	RzCmdDesc *cmd_fridaJ_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaJ", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaJ_handler, &cmd_fridaJ_help);
+	rz_warn_if_fail(cmd_fridaJ_cd);
+
+	RzCmdDesc *cmd_fridaL_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaL", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaL_handler, &cmd_fridaL_help);
+	rz_warn_if_fail(cmd_fridaL_cd);
 	rz_cmd_batch_end(core->rcmd);
 }

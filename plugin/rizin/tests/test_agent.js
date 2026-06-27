@@ -118,6 +118,25 @@ const sandbox = {
 		getCurrentThreadId: function () { return 4242; },
 		setExceptionHandler: function (cb) { exceptionHandler = cb; }
 	},
+	Java: {
+		available: true,
+		performNow: function (fn) { return fn(); },
+		perform: function (fn) { return fn(); },
+		enumerateClassLoadersSync: function () {
+			return [
+				{ getClass: function () { return { getName: function () { return 'dalvik.system.PathClassLoader'; } }; },
+					toString: function () { return 'dalvik.system.PathClassLoader[DexPathList[...]]'; } },
+				{ getClass: function () { return { getName: function () { return 'java.lang.BootClassLoader'; } }; },
+					toString: function () { return 'java.lang.BootClassLoader@abc'; } }
+			];
+		},
+		enumerateLoadedClassesSync: function () {
+			return ['re.frida.minapp.MainActivity', 'java.lang.String', 'java.lang.System',
+				'android.app.Activity', 'android.os.Bundle'];
+		},
+		use: function (name) { return {}; },
+		ClassFactory: { get: function (loader) { return { use: function () { return {}; } }; } }
+	},
 	// untyped recv stores the handler, typed recv(type, cb) is a parked thread waiter.
 	recv: function (type, cb) {
 		if (typeof type === 'function') {
@@ -464,5 +483,18 @@ roundtrip({ id: 71, type: 'wpSet', params: { address: '0xd000', slots: 1 } });
 const wpFull = roundtrip({ id: 72, type: 'wpSet', params: { address: '0xe000', slots: 1 } });
 assert.strictEqual(wpFull.error, 'no free hardware watchpoint slot', 'the host slot cap is honored');
 roundtrip({ id: 73, type: 'wpRemove', params: { address: '*' } });
+
+// java vm check
+assert.deepStrictEqual(roundtrip({ id: 80, type: 'javaAvailable' }),
+	{ id: 80, ok: true, result: { available: true } }, 'javaAvailable reports the bridge is reachable');
+
+// classloader enumeration
+const ldrs = roundtrip({ id: 81, type: 'loaderList' });
+assert.strictEqual(ldrs.ok, true, 'loaderList returns ok');
+assert.strictEqual(ldrs.result.loaders.length, 2, 'loaderList returns two loaders');
+assert.strictEqual(ldrs.result.loaders[0].id, 1, 'the first loader gets id 1');
+assert.strictEqual(ldrs.result.loaders[1].id, 2, 'the second loader gets id 2');
+assert.notStrictEqual(ldrs.result.loaders[0].id, ldrs.result.loaders[1].id, 'loader ids are unique');
+assert.strictEqual(ldrs.result.loaders[0].type, 'dalvik.system.PathClassLoader', 'the loader type is reported');
 
 console.log('ok - agent script protocol');
