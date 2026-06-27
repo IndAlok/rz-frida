@@ -325,18 +325,12 @@ function ensureExceptionHandler() {
     if (watchpoints.size === 0) {
       return false;
     }
-    var handled = details.type === 'breakpoint' || details.type === 'single-step';
-    if (!handled) {
-      // just to log unexpected types the arm64 hw wp might produce.
-      send({ type: 'frida.exc', exType: details.type, exAddr: details.address ? details.address.toString() : null,
-        hasMem: details.memory ? 1 : 0 });
+    if (details.type !== 'breakpoint' && details.type !== 'single-step') {
       return false;
     }
-    const access = details.memory || null;
-    var accessAddr = access && access.address ? access.address : null;
-    if (!accessAddr && details.address) {
-      accessAddr = details.address;
-    }
+    // frida may report accessed addr in memory.address or at top level.
+    var mem = details.memory || null;
+    var accessAddr = (mem && mem.address) ? mem.address : (details.address || null);
     var fired = null;
     if (accessAddr) {
       watchpoints.forEach(function (wp) {
@@ -367,7 +361,7 @@ function ensureExceptionHandler() {
       type: 'frida.wp',
       threadId: Process.getCurrentThreadId(),
       pc: details.context && details.context.pc ? details.context.pc.toString() : null,
-      operation: access ? access.operation : null,
+      operation: details.memory ? details.memory.operation : null,
       address: accessAddr ? accessAddr.toString() : null,
       watched: watched,
       context: wpCtx
