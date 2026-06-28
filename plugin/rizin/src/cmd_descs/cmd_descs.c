@@ -755,7 +755,7 @@ static const RzCmdDescArg cmd_fridaC_args[] = {
 };
 static const RzCmdDescHelp cmd_fridaC_help = {
 	.summary = "Enumerate loaded Java classes in the target",
-	.description = "Enumerates the loaded Java classes in the target process through the rz-frida agent. An optional prefix narrows the list to classes whose canonical name starts with that string. The frida.java.max config (default 500) caps the batch; zero means unlimited.",
+	.description = "Enumerates the loaded Java classes in the target process through the rz-frida agent. An optional prefix narrows the list to classes whose canonical name starts with that string. The frida.java.max config (default 512) caps the batch; zero means unlimited.",
 	.args = cmd_fridaC_args,
 };
 

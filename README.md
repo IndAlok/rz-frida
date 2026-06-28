@@ -279,7 +279,7 @@ fridaCj re.frida.minapp
 `fridaJj` checks whether the Java VM is reachable. `fridaLj` enumerates the classloaders
 with stable session-scoped int ids, each reporting its runtime type and `toString`
 representation. `fridaCj` lists loaded classes; pass a prefix to filter by package or
-class name, otherwise the full list is returned. The `frida.java.max` config (default 500)
+class name, otherwise the full list is returned. The `frida.java.max` config (default 512)
 caps the batch and a `truncated` flag in the reply says whether more classes exist beyond
 the cap.
 
@@ -296,7 +296,7 @@ e frida.java.max=500       # max loaded classes fridaC returns per request, 0 fo
 
 `frida.timeout` is applied when a session is opened with `fridaoj`. `frida.hw.watchpoints`
 defaults to 4 (the common arm64 and x86 count), raise it on a CPU with more slots.
-`frida.java.max` defaults to 500 to avoid dumping tens of thousands of classes at once,
+`frida.java.max` defaults to 512 to avoid dumping tens of thousands of classes at once,
 set it to 0 on a fast device when you need the complete list.
 
 ## Install

@@ -14,7 +14,7 @@ let exceptionHandlerReady = false;
 const loaderIds = new Map(); // classloader wrapper -> stable integer id
 let nextLoaderId = 1;
 
-function javaAvailable() {
+function isJavaAvailable() {
   return { available: typeof Java !== 'undefined' && Java.available };
 }
 
@@ -41,7 +41,7 @@ function classList(params) {
     throw new Error('Java VM is not available');
   }
   const prefix = typeof params.prefix === 'string' ? params.prefix : '';
-  const max = (typeof params.max === 'number' && params.max > 0) ? params.max : 500;
+  const max = (typeof params.max === 'number' && params.max > 0) ? params.max : 512;
   const classes = [];
   Java.performNow(function () {
     const all = Java.enumerateLoadedClassesSync();
@@ -239,7 +239,7 @@ function bpSet(params) {
     onEnter() {
       try {
         const tid = Process.getCurrentThreadId();
-        // erialized context can exceed the arm64 send limit, so keeping it empty.
+        // serialized context can exceed the arm64 send limit, so keeping it empty.
         send({ type: 'frida.bp', bp: id, address: key, threadId: tid, context: {} });
         stopped.set(tid, { bp: id, address: key, context: this.context });
         let resumed = false;
@@ -534,8 +534,8 @@ function handleRequest(request) {
       return wpList();
     case 'wpRemove':
       return wpRemove(params);
-    case 'javaAvailable':
-      return javaAvailable();
+    case 'isJavaAvailable':
+      return isJavaAvailable();
     case 'loaderList':
       return loaderList();
     case 'classList':

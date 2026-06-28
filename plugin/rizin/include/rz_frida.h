@@ -11,7 +11,7 @@
 #define RZ_FRIDA_MSGBUF_CAPACITY 256
 #define RZ_FRIDA_MEM_MAX_DEFAULT 0x100000
 #define RZ_FRIDA_HW_WATCHPOINTS_DEFAULT 4
-#define RZ_FRIDA_JAVA_MAX_DEFAULT 500
+#define RZ_FRIDA_JAVA_MAX_DEFAULT 512
 
 /**
  * \brief URI operation requested by the frontend or command layer.

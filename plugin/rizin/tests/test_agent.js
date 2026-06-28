@@ -485,8 +485,8 @@ assert.strictEqual(wpFull.error, 'no free hardware watchpoint slot', 'the host s
 roundtrip({ id: 73, type: 'wpRemove', params: { address: '*' } });
 
 // java vm check
-assert.deepStrictEqual(roundtrip({ id: 80, type: 'javaAvailable' }),
-	{ id: 80, ok: true, result: { available: true } }, 'javaAvailable reports the bridge is reachable');
+assert.deepStrictEqual(roundtrip({ id: 80, type: 'isJavaAvailable' }),
+	{ id: 80, ok: true, result: { available: true } }, 'isJavaAvailable reports the bridge is reachable');
 
 // classloader enumeration
 const ldrs = roundtrip({ id: 81, type: 'loaderList' });

@@ -1950,7 +1950,7 @@ RZ_IPI bool rz_frida_backend_java_available(RZ_NONNULL RzFridaSession *session, 
 	RzFridaResponse response = { 0 };
 	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
 	const char *fail_msg = NULL;
-	bool got = backend_request(backend, session, "javaAvailable", NULL,
+	bool got = backend_request(backend, session, "isJavaAvailable", NULL,
 		&response, &fail_code, &fail_msg);
 	if (!got) {
 		rz_frida_json_error(pj, fail_code, fail_msg);
