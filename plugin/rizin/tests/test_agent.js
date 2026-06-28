@@ -497,4 +497,36 @@ assert.strictEqual(ldrs.result.loaders[1].id, 2, 'the second loader gets id 2');
 assert.notStrictEqual(ldrs.result.loaders[0].id, ldrs.result.loaders[1].id, 'loader ids are unique');
 assert.strictEqual(ldrs.result.loaders[0].type, 'dalvik.system.PathClassLoader', 'the loader type is reported');
 
+// class enumeration
+assert.deepStrictEqual(roundtrip({ id: 82, type: 'classList' }),
+	{ id: 82, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' },
+		{ name: 'java.lang.String' }, { name: 'java.lang.System' },
+		{ name: 'android.app.Activity' }, { name: 'android.os.Bundle' }],
+		total: 5, truncated: false } },
+	'classList returns all loaded classes');
+
+// prefix filter
+assert.deepStrictEqual(roundtrip({ id: 83, type: 'classList', params: { prefix: 're.frida.minapp' } }),
+	{ id: 83, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' }],
+		total: 1, truncated: false } },
+	'classList with prefix returns matching classes only');
+
+// negative prefix
+assert.deepStrictEqual(roundtrip({ id: 84, type: 'classList', params: { prefix: 'kotlin.' } }),
+	{ id: 84, ok: true, result: { classes: [], total: 0, truncated: false } },
+	'classList with absent prefix returns an empty list');
+
+// simple name match (matches class name after last dot)
+assert.deepStrictEqual(roundtrip({ id: 86, type: 'classList', params: { prefix: 'MainActivity' } }),
+	{ id: 86, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' }],
+		total: 1, truncated: false } },
+	'a simple name prefix matches the class name');
+
+// batch cap
+assert.deepStrictEqual(roundtrip({ id: 85, type: 'classList', params: { max: 2 } }),
+	{ id: 85, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' },
+		{ name: 'java.lang.String' }],
+		total: 2, truncated: true } },
+	'the max cap truncates and marks the result');
+
 console.log('ok - agent script protocol');

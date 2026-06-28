@@ -36,6 +36,29 @@ function loaderList() {
   return { loaders: loaders };
 }
 
+function classList(params) {
+  if (typeof Java === 'undefined' || !Java.available) {
+    throw new Error('Java VM is not available');
+  }
+  const prefix = typeof params.prefix === 'string' ? params.prefix : '';
+  const max = (typeof params.max === 'number' && params.max > 0) ? params.max : 500;
+  const classes = [];
+  Java.performNow(function () {
+    const all = Java.enumerateLoadedClassesSync();
+    for (let i = 0; i < all.length && classes.length < max; i++) {
+      var s = all[i];
+      if (prefix !== '' && s.indexOf(prefix) !== 0) {
+        var dot = s.lastIndexOf('.');
+        if (dot < 0 || s.substring(dot + 1) !== prefix) {
+          continue;
+        }
+      }
+      classes.push({ name: s });
+    }
+  });
+  return { classes: classes, total: classes.length, truncated: classes.length >= max };
+}
+
 function agentInfo() {
   return {
     version: RZ_FRIDA_AGENT_VERSION,
@@ -515,6 +538,8 @@ function handleRequest(request) {
       return javaAvailable();
     case 'loaderList':
       return loaderList();
+    case 'classList':
+      return classList(params);
     default:
       throw new Error('unknown request type: ' + String(type));
   }

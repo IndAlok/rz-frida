@@ -697,3 +697,18 @@ commands:
         modes:
           - RZ_OUTPUT_MODE_JSON
         args: []
+      - name: fridaC
+        cname: cmd_fridaC
+        summary: "Enumerate loaded Java classes in the target"
+        description: >
+          Enumerates the loaded Java classes in the target process through the
+          rz-frida agent. An optional prefix narrows the list to classes whose
+          canonical name starts with that string. The frida.java.max config
+          (default 500) caps the batch; zero means unlimited.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: prefix
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true

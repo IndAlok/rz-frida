@@ -86,6 +86,10 @@ fridaBj 4242
 fridaBj 4242 pc 0x401000
 fridaWj 0x1000 8 w
 fridaW-j 0x1000
+fridaJj
+fridaLj
+fridaCj
+fridaCj re.frida.minapp
 ```
 
 `fridadj`, `fridapj`, `fridaaj`, and `fridaoj` return a structured `frida_unavailable`
@@ -259,18 +263,41 @@ which `fridaej` can drive directly when needed. Parking a thread that's there fo
 make app unresponsive, so continue promptly, and closing the session releases any thread
 still parked.
 
+## Java VM
+
+On an Android target the plugin can inspect the Java VM through the injected agent.
+The Java bridge is bundled at build time when `node_modules` is present, and the agent
+degrades on non-Android targets.
+
+```
+fridaJj
+fridaLj
+fridaCj
+fridaCj re.frida.minapp
+```
+
+`fridaJj` checks whether the Java VM is reachable. `fridaLj` enumerates the classloaders
+with stable session-scoped int ids, each reporting its runtime type and `toString`
+representation. `fridaCj` lists loaded classes; pass a prefix to filter by package or
+class name, otherwise the full list is returned. The `frida.java.max` config (default 500)
+caps the batch and a `truncated` flag in the reply says whether more classes exist beyond
+the cap.
+
 ## Configuration
 
-Three `e` config variables tune the runtime behaviour:
+Four `e` config variables tune the runtime behaviour:
 
 ```
 e frida.mem.max=0x100000   # max bytes per fridaxj/fridawj transfer, 0 for no limit
 e frida.timeout=5000       # session and agent request timeout in milliseconds
 e frida.hw.watchpoints=4   # max hardware watchpoint slots fridaW may use, capped by the CPU
+e frida.java.max=500       # max loaded classes fridaC returns per request, 0 for unlimited
 ```
 
 `frida.timeout` is applied when a session is opened with `fridaoj`. `frida.hw.watchpoints`
 defaults to 4 (the common arm64 and x86 count), raise it on a CPU with more slots.
+`frida.java.max` defaults to 500 to avoid dumping tens of thousands of classes at once,
+set it to 0 on a fast device when you need the complete list.
 
 ## Install
 

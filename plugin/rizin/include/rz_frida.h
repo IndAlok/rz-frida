@@ -11,6 +11,7 @@
 #define RZ_FRIDA_MSGBUF_CAPACITY 256
 #define RZ_FRIDA_MEM_MAX_DEFAULT 0x100000
 #define RZ_FRIDA_HW_WATCHPOINTS_DEFAULT 4
+#define RZ_FRIDA_JAVA_MAX_DEFAULT 500
 
 /**
  * \brief URI operation requested by the frontend or command layer.
@@ -242,6 +243,7 @@ RZ_IPI bool rz_frida_backend_wp_list(RZ_NONNULL RzFridaSession *session, RZ_NONN
 RZ_IPI bool rz_frida_backend_wp_remove(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *address, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_java_available(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_loaders(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_classes(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *prefix, ut64 max, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj);
 

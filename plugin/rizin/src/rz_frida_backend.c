@@ -2001,6 +2001,68 @@ RZ_IPI bool rz_frida_backend_loaders(RZ_NONNULL RzFridaSession *session, RZ_NONN
 }
 
 /**
+ * \brief Enumerate loaded Java classes in the target through the agent.
+ *
+ * Loads the agent on first use, sends a classList request with an optional
+ * prefix filter and a max cap from the frida.java.max config, and writes an
+ * ok:true envelope carrying the matching class names together with the count
+ * and a truncated flag, or an ok:false envelope on timeout, cancel, or an
+ * agent error. When the plugin is built without frida-core, a self-contained
+ * implementation reports \ref RZ_FRIDA_ERROR_FRIDA_UNAVAILABLE instead.
+ *
+ * \param session Session holding the attached backend handles.
+ * \param prefix Package or class name prefix to filter by, or NULL for all.
+ * \param pj JSON builder that receives the reply envelope.
+ * \return true when the agent replied, false on any error.
+ */
+RZ_IPI bool rz_frida_backend_classes(RZ_NONNULL RzFridaSession *session,
+	RZ_NULLABLE const char *prefix, ut64 max, RZ_NONNULL PJ *pj) {
+	rz_return_val_if_fail(session && pj, false);
+
+	RzFridaBackendSession *backend = rz_frida_session_backend_state(session);
+	if (!backend) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return false;
+	}
+	if (!backend_ensure_script(backend, session, pj)) {
+		return false;
+	}
+
+	PJ *params = pj_new();
+	if (!params) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+	pj_o(params);
+	if (RZ_STR_ISNOTEMPTY(prefix)) {
+		pj_ks(params, "prefix", prefix);
+	}
+	if (max) {
+		pj_kn(params, "max", max);
+	}
+	pj_end(params);
+	char *params_json = pj_drain(params);
+	if (!params_json) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INTERNAL, "cannot build the request");
+		return false;
+	}
+
+	RzFridaResponse response = { 0 };
+	RzFridaError fail_code = RZ_FRIDA_ERROR_INTERNAL;
+	const char *fail_msg = NULL;
+	bool got = backend_request(backend, session, "classList", params_json,
+		&response, &fail_code, &fail_msg);
+	free(params_json);
+	if (!got) {
+		rz_frida_json_error(pj, fail_code, fail_msg);
+		return false;
+	}
+	bool ok = backend_emit_response(pj, &response);
+	rz_frida_response_fini(&response);
+	return ok;
+}
+
+/**
  * \brief Ping the agent loaded in the target and report what it sees.
  *
  * Loads the agent on first use, sends a ping request, and writes an ok:true

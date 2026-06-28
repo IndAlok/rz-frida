@@ -46,6 +46,7 @@ static const RzCmdDescArg cmd_fridag_args[2];
 static const RzCmdDescArg cmd_fridaB_args[4];
 static const RzCmdDescArg cmd_fridaW_args[4];
 static const RzCmdDescArg cmd_fridaW_minus_args[2];
+static const RzCmdDescArg cmd_fridaC_args[2];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -742,6 +743,22 @@ static const RzCmdDescHelp cmd_fridaL_help = {
 	.args = cmd_fridaL_args,
 };
 
+static const RzCmdDescArg cmd_fridaC_args[] = {
+	{
+		.name = "prefix",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+		.flags = RZ_CMD_ARG_FLAG_LAST,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaC_help = {
+	.summary = "Enumerate loaded Java classes in the target",
+	.description = "Enumerates the loaded Java classes in the target process through the rz-frida agent. An optional prefix narrows the list to classes whose canonical name starts with that string. The frida.java.max config (default 500) caps the batch; zero means unlimited.",
+	.args = cmd_fridaC_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -831,5 +848,8 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridaL_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaL", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaL_handler, &cmd_fridaL_help);
 	rz_warn_if_fail(cmd_fridaL_cd);
+
+	RzCmdDesc *cmd_fridaC_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaC", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaC_handler, &cmd_fridaC_help);
+	rz_warn_if_fail(cmd_fridaC_cd);
 	rz_cmd_batch_end(core->rcmd);
 }
