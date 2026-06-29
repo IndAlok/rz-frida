@@ -1,0 +1,28 @@
+{
+  "env": { "es2021": true, "node": true },
+  "globals": {
+    "Process": "readonly",
+    "Module": "readonly",
+    "Memory": "readonly",
+    "Interceptor": "readonly",
+    "Java": "readonly",
+    "ptr": "readonly",
+    "send": "readonly",
+    "recv": "readonly",
+    "rpc": "readonly",
+    "console": "readonly",
+    "setTimeout": "readonly",
+    "setInterval": "readonly",
+    "clearInterval": "readonly",
+    "JSON": "readonly",
+    "Date": "readonly",
+    "ArrayBuffer": "readonly",
+    "Uint8Array": "readonly"
+  },
+  "parserOptions": { "ecmaVersion": 2021 },
+  "rules": {
+    "semi": ["error", "always"],
+    "no-unused-vars": ["warn", { "args": "none" }],
+    "no-undef": "error"
+  }
+}

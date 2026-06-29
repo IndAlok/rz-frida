@@ -25,6 +25,7 @@ BYTES_PER_ROW = 12
 
 
 def render(data):
+    # REUSE-IgnoreStart
     lines = [
         "// SPDX-FileCopyrightText: 2026 Alok Kumar Mishra <alok16022006@gmail.com>",
         "// SPDX-License-Identifier: LGPL-3.0-only",
@@ -37,6 +38,7 @@ def render(data):
         "",
         "static const unsigned char rz_frida_agent_source[] = {",
     ]
+    # REUSE-IgnoreEnd
     values = ["0x%02x," % b for b in data]
     values.append("0x00")
     for start in range(0, len(values), BYTES_PER_ROW):

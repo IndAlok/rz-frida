@@ -1,0 +1,81 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      js: ${{ steps.filter.outputs.js }}
+      python: ${{ steps.filter.outputs.python }}
+      yaml: ${{ steps.filter.outputs.yaml }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            js:
+              - '**/*.js'
+            python:
+              - 'plugin/rizin/agent/**/*.py'
+            yaml:
+              - '**/*.yml'
+              - '**/*.yaml'
+
+  eslint:
+    needs: changes
+    if: ${{ needs.changes.outputs.js == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with: { node-version: '18' }
+      - run: npm install eslint@8
+      - run: npx eslint -c plugin/rizin/agent/.eslintrc.json . --ext .js --ignore-pattern node_modules --max-warnings 0
+
+  flake8:
+    needs: changes
+    if: ${{ needs.changes.outputs.python == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: '3.12' }
+      - run: pip install flake8
+      - run: python -m flake8 plugin/rizin/agent/ --max-line-length 100
+
+  yamllint:
+    needs: changes
+    if: ${{ needs.changes.outputs.yaml == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: '3.12' }
+      - run: pip install PyYAML
+      - name: Validate YAML
+        run: |
+          python -c "
+          import yaml, sys, glob
+          ok = True
+          for f in glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True):
+              if 'node_modules' in f:
+                  continue
+              try:
+                  yaml.safe_load(open(f))
+              except Exception as e:
+                  print(f'{f}: FAILED - {e}')
+                  ok = False
+          print('YAML OK' if ok else 'YAML FAILED')
+          sys.exit(0 if ok else 1)
+          "
+
+  licenses:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: fsfe/reuse-action@v6
