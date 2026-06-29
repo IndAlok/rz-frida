@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  linux-frida:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '18' }
+
+      - name: Install rizin
+        run: |
+          pip install meson ninja PyYAML
+          wget -q "https://github.com/rizinorg/rizin/releases/download/v0.9.0/rizin-src-v0.9.0.tar.xz"
+          tar xf rizin-src-v0.9.0.tar.xz
+          cd rizin-v0.9.0
+          meson setup build --prefix=/usr -Dblob=true
+          ninja -C build
+          sudo ninja -C build install
+          cd ..
+
+      - name: Build (with frida-core)
+        run: |
+          wget -q "https://github.com/frida/frida/releases/download/17.14.0/frida-core-devkit-17.14.0-linux-x86_64.tar.xz"
+          mkdir -p frida-core-devkit-17.14.0
+          tar xf frida-core-devkit-17.14.0-linux-x86_64.tar.xz -C frida-core-devkit-17.14.0
+          meson setup build \
+            -Dfrida_core=enabled \
+            -Dfrida_include_dir="$(pwd)/frida-core-devkit-17.14.0" \
+            -Dfrida_library="$(pwd)/frida-core-devkit-17.14.0/libfrida-core.a"
+          ninja -C build
+
+      - name: Test
+        run: meson test -C build --print-errorlogs
+
+  linux-no-frida:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '18' }
+
+      - name: Install rizin
+        run: |
+          pip install meson ninja PyYAML
+          wget -q "https://github.com/rizinorg/rizin/releases/download/v0.9.0/rizin-src-v0.9.0.tar.xz"
+          tar xf rizin-src-v0.9.0.tar.xz
+          cd rizin-v0.9.0
+          meson setup build --prefix=/usr -Dblob=true
+          ninja -C build
+          sudo ninja -C build install
+          cd ..
+
+      - name: Build (without frida-core)
+        run: |
+          meson setup build -Dfrida_core=disabled
+          ninja -C build
+
+      - name: Test
+        run: meson test -C build --print-errorlogs
