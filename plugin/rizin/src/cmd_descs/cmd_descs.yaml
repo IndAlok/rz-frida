@@ -95,6 +95,32 @@ commands:
           - text: "fridaSj "
             arg_str: "libc.so"
             comment: "List the symbols of a module"
+      - name: "Debugging"
+        entries:
+          - text: "fridabj "
+            arg_str: "0x1000"
+            comment: "Set a breakpoint at an address"
+          - text: "fridabj"
+            comment: "List the breakpoints that are set"
+          - text: "fridab-j "
+            arg_str: "0x1000"
+            comment: "Remove a breakpoint, or use * for all"
+          - text: "fridagj"
+            comment: "Continue a thread parked at a breakpoint"
+          - text: "fridaBj "
+            arg_str: "4242"
+            comment: "Read the registers of the thread stopped at a breakpoint"
+          - text: "fridaBj "
+            arg_str: "4242 pc 0x401000"
+            comment: "Set a register on the stopped thread before continuing"
+          - text: "fridaWj "
+            arg_str: "0x1000 8 w"
+            comment: "Watch 8 bytes for writes with a hardware watchpoint"
+          - text: "fridaWj"
+            comment: "List the hardware watchpoints that are set"
+          - text: "fridaW-j "
+            arg_str: "0x1000"
+            comment: "Remove a watchpoint, or use * for all"
     subcommands:
       - name: fridas
         cname: cmd_fridas
@@ -490,3 +516,199 @@ commands:
               - text: "fridaSj "
                 arg_str: "libc.so"
                 comment: "List the symbols of libc.so in the target"
+      - name: fridab
+        cname: cmd_fridab
+        summary: "Set or list native breakpoints"
+        description: >
+          Sets a breakpoint at an address in the target process through the
+          rz-frida agent, or lists the breakpoints that are set when called with
+          no argument. A hit is reported asynchronously through fridam with the
+          thread id and register context, and the thread stays parked until
+          fridag continues it. Loads the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridabj "
+                arg_str: "0x1000"
+                comment: "Set a breakpoint at 0x1000 in the target"
+              - text: "fridabj"
+                comment: "List the breakpoints that are set"
+      - name: fridab-
+        cname: cmd_fridab_minus
+        summary: "Remove native breakpoints"
+        description: >
+          Removes the breakpoint at an address in the target process through the
+          rz-frida agent, or every breakpoint when the address is *. Loads the
+          agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridab-j "
+                arg_str: "0x1000"
+                comment: "Remove the breakpoint at 0x1000"
+              - text: "fridab-j "
+                arg_str: "*"
+                comment: "Remove every breakpoint"
+      - name: fridag
+        cname: cmd_fridag
+        summary: "Continue a thread parked at a breakpoint"
+        description: >
+          Continues a thread parked at a breakpoint in the target process
+          through the rz-frida agent. With a thread id it continues that exact
+          thread, with no argument it continues the most recently parked thread,
+          and reports whether a thread was released. Loads the agent into the
+          open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: thread
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridagj"
+                comment: "Continue the most recently parked thread"
+              - text: "fridagj "
+                arg_str: "4242"
+                comment: "Continue the thread with id 4242"
+      - name: fridaB
+        cname: cmd_fridaB
+        summary: "Read or write registers at a breakpoint stop"
+        description: >
+          Reads the saved register context of a thread parked at a breakpoint in
+          the target process through the rz-frida agent, or sets one register when
+          a register name and value follow the thread id. A write lands on the
+          saved context and takes effect when the thread is continued with fridag.
+          Loads the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: thread
+            type: RZ_CMD_ARG_TYPE_NUM
+          - name: register
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+          - name: value
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaBj "
+                arg_str: "4242"
+                comment: "Read the registers of the thread with id 4242"
+              - text: "fridaBj "
+                arg_str: "4242 pc 0x401000"
+                comment: "Set pc on thread 4242 before continuing it with fridagj"
+      - name: fridaW
+        cname: cmd_fridaW
+        summary: "Set or list hardware watchpoints"
+        description: >
+          Sets a hardware watchpoint on an address in the target process through
+          the rz-frida agent, or lists the watchpoints that are set when called
+          with no argument. The optional size defaults to the pointer size and the
+          optional conditions are r, w, or rw (default rw). The watchpoint is armed
+          on every target thread, an access is reported asynchronously through
+          fridam as a frida.wp event with the faulting thread, program counter, and
+          register context, and the watchpoint disarms itself on that hit. The CPU
+          has a small fixed number of watchpoint slots. Loads the agent into the
+          open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+          - name: size
+            type: RZ_CMD_ARG_TYPE_NUM
+            optional: true
+          - name: conditions
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaWj "
+                arg_str: "0x1000"
+                comment: "Watch the pointer-sized word at 0x1000 for reads and writes"
+              - text: "fridaWj "
+                arg_str: "0x1000 8 w"
+                comment: "Watch 8 bytes at 0x1000 for writes only"
+              - text: "fridaWj"
+                comment: "List the watchpoints that are set"
+      - name: fridaW-
+        cname: cmd_fridaW_minus
+        summary: "Remove hardware watchpoints"
+        description: >
+          Removes the hardware watchpoint at an address in the target process
+          through the rz-frida agent, or every watchpoint when the address is *.
+          Loads the agent into the open session on first use.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: address
+            type: RZ_CMD_ARG_TYPE_STRING
+        details:
+          - name: "Examples"
+            entries:
+              - text: "fridaW-j "
+                arg_str: "0x1000"
+                comment: "Remove the watchpoint at 0x1000"
+              - text: "fridaW-j "
+                arg_str: "*"
+                comment: "Remove every watchpoint"
+      - name: fridaJ
+        cname: cmd_fridaJ
+        summary: "Check whether the Android Java VM is reachable"
+        description: >
+          Checks whether the Java VM (ART) is available in the target process and
+          reports whether Java instrumentation is possible. Requires an Android
+          target with the frida-java-bridge bundled into the agent.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+      - name: fridaL
+        cname: cmd_fridaL
+        summary: "Enumerate Java classloaders in the target"
+        description: >
+          Enumerates the classloaders in the target process through the rz-frida
+          agent and assigns each one a stable integer id for the current session.
+          Requires an Android target with the Java VM available.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args: []
+      - name: fridaC
+        cname: cmd_fridaC
+        summary: "Enumerate loaded Java classes in the target"
+        description: >
+          Enumerates the loaded Java classes in the target process through the
+          rz-frida agent. An optional prefix narrows the list to classes whose
+          canonical name starts with that string. The frida.java.max config
+          (default 512) caps the batch; zero means unlimited.
+        type: RZ_CMD_DESC_TYPE_ARGV_STATE
+        modes:
+          - RZ_OUTPUT_MODE_JSON
+        args:
+          - name: prefix
+            type: RZ_CMD_ARG_TYPE_STRING
+            optional: true

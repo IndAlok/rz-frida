@@ -1,0 +1,13 @@
+{
+  "name": "rzfrida-agent",
+  "version": "1.0.0",
+  "description": "Injected agent for the rz-frida Rizin plugin",
+  "private": true,
+  "scripts": {
+    "build": "frida-compile -Sc -o rzfrida_agent.bundle.js entry.js"
+  },
+  "devDependencies": {
+    "frida-compile": "^19.0.5",
+    "frida-java-bridge": "^7.0.13"
+  }
+}

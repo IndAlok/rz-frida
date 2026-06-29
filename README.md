@@ -17,6 +17,8 @@ The plugin provides:
 - target memory r/w through the agent when `frida-core` is enabled
 - target memory range and thread listing through the agent when `frida-core` is enabled
 - target module, export, import, and sym listing through the agent when `frida-core` is enabled
+- native breakpoints with thread-targeted continue and register r/w at a stop through the agent when `frida-core` is enabled
+- hardware watchpoints on every thread, reporting the access with its register context, through the agent when `frida-core` is enabled
 
 # Rizin Plugin
 
@@ -77,6 +79,17 @@ fridaMj
 fridaEj libc.so
 fridaIj libc.so
 fridaSj libc.so
+fridabj 0x1000
+fridab-j 0x1000
+fridagj
+fridaBj 4242
+fridaBj 4242 pc 0x401000
+fridaWj 0x1000 8 w
+fridaW-j 0x1000
+fridaJj
+fridaLj
+fridaCj
+fridaCj re.frida.minapp
 ```
 
 `fridadj`, `fridapj`, `fridaaj`, and `fridaoj` return a structured `frida_unavailable`
@@ -195,16 +208,96 @@ The agent caches the range and module lists and re-enumerates after code runs in
 `cached` flag says whether it came from the cache, and passing any arg to `fridaRj` or
 `fridaMj` forces a fresh enumeration.
 
+## Debugging
+
+Once a session is open, the plugin sets native breakpoints in the target through the agent
+and parks the thread that hits one until you continue it.
+
+```
+fridabj 0x1000
+fridabj
+fridab-j 0x1000
+fridab-j *
+fridagj
+fridagj 4242
+fridaBj 4242
+fridaBj 4242 pc 0x401000
+fridaWj 0x1000 8 w
+fridaWj
+fridaW-j 0x1000
+fridaW-j *
+```
+
+`fridabj <addr>` sets a breakpoint, `fridabj` with no arg lists the ones that are set, and
+`fridab-j` removes one addr or `*` for all. A breakpoint is an `Interceptor.attach`, so it
+fires on whichever thread reaches the addr, there is no cap on how many you set, and the
+target code is never patched.
+
+A hit isn't a reply, it arrives asynchronously and `fridamj` drains it as a `frida.bp`
+msg carrying the breakpoint id (under `bp`), the thread id, and the register context at
+the stop. The thread that hit stays parked until you continue it. `fridagj <tid>` continues
+that exact thread, `fridagj` with no arg continues the most recently parked one, and it
+reports whether a thread was released. Other agent cmds keep working while a thread is parked,
+so you can read mem or list threads at the stop, and one continue releases one parked thread.
+
+`fridaBj <tid>` reads the saved registers of the parked thread, and `fridaBj <tid> <reg>
+<value>` sets one register. A write goes on the saved context and takes effect when the
+thread is continued, so set `pc`, an arg reg, or a return value at the stop and
+then `fridagj` to resume with it.
+
+`fridaWj <addr> [size] [r|w|rw]` sets a hardware watchpoint, `fridaWj` with no arg lists the
+ones that are set, and `fridaW-j` removes one addr or `*` for all. The watchpoint is there on
+**every** target thread (the hardware debug registers are per-thread, so covering all of them
+catches the access wherever it comes from), size defaults to the ptr size, and the
+conditions default to `rw`. An access arrives through `fridamj` as a `frida.wp` msg with
+the faulting thread, the program counter, the access operation and addr, and the full
+register context. A watchpoint disarms itself on the hit so the faulting
+instruction does not re-trap, re-arm it to catch the next access. The slot count is bounded by
+`frida.hw.watchpoints` (default 4) and by the CPU, so a set fails when they're full.
+
+Execution breakpoints (`fridab`) use `Interceptor`, which fires on every thread with no slot
+limit and never patches the target code, and data watchpoints (`fridaW`) use the hardware
+debug registers, so the two cover different needs without slot conflicts. Instruction
+single stepping isn't exposed as a cmd, Frida offers it only through Stalker tracing,
+which `fridaej` can drive directly when needed. Parking a thread that's there for UI could
+make app unresponsive, so continue promptly, and closing the session releases any thread
+still parked.
+
+## Java VM
+
+On an Android target the plugin can inspect the Java VM through the injected agent.
+The Java bridge is bundled at build time when `node_modules` is present, and the agent
+degrades on non-Android targets.
+
+```
+fridaJj
+fridaLj
+fridaCj
+fridaCj re.frida.minapp
+```
+
+`fridaJj` checks whether the Java VM is reachable. `fridaLj` enumerates the classloaders
+with stable session-scoped int ids, each reporting its runtime type and `toString`
+representation. `fridaCj` lists loaded classes; pass a prefix to filter by package or
+class name, otherwise the full list is returned. The `frida.java.max` config (default 512)
+caps the batch and a `truncated` flag in the reply says whether more classes exist beyond
+the cap.
+
 ## Configuration
 
-Two `e` config variables tune the runtime behaviour:
+Four `e` config variables tune the runtime behaviour:
 
 ```
 e frida.mem.max=0x100000   # max bytes per fridaxj/fridawj transfer, 0 for no limit
 e frida.timeout=5000       # session and agent request timeout in milliseconds
+e frida.hw.watchpoints=4   # max hardware watchpoint slots fridaW may use, capped by the CPU
+e frida.java.max=500       # max loaded classes fridaC returns per request, 0 for unlimited
 ```
 
-`frida.timeout` is applied when a session is opened with `fridaoj`.
+`frida.timeout` is applied when a session is opened with `fridaoj`. `frida.hw.watchpoints`
+defaults to 4 (the common arm64 and x86 count), raise it on a CPU with more slots.
+`frida.java.max` defaults to 512 to avoid dumping tens of thousands of classes at once,
+set it to 0 on a fast device when you need the complete list.
 
 ## Install
 

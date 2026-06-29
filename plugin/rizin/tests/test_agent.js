@@ -20,6 +20,11 @@ const source = fs.readFileSync(agentPath, 'utf8');
 
 const sent = [];
 let pendingRecv = null;
+const interceptors = new Map();
+let continueDeliverId = 0;
+const parkedActions = [];
+let exceptionHandler = null;
+const hwWatch = new Map();
 
 // fake target memory region, backs a known byte pattern at MEM_BASE, addressed through ptr().
 const MEM_BASE = 0x1000;
@@ -71,6 +76,12 @@ const fakeThreads = [
 	{ id: 1, state: 'waiting', context: { pc: new FakePtr(0x401000), sp: new FakePtr(0x7000) } },
 	{ id: 2, state: 'running', context: { pc: new FakePtr(0x402000), sp: new FakePtr(0x8000) }, entrypoint: { routine: new FakePtr(0x400000), parameter: new FakePtr(0) } }
 ];
+fakeThreads.forEach(function (t) {
+	t.setHardwareWatchpoint = function (slot, addr, size, conditions) {
+		hwWatch.set(slot, { address: addr.toString(), size: size, conditions: conditions });
+	};
+	t.unsetHardwareWatchpoint = function (slot) { hwWatch.delete(slot); };
+});
 const fakeExports = [
 	{ type: 'function', name: 'main', address: new FakePtr(0x401000) },
 	{ type: 'variable', name: 'global', address: new FakePtr(0x402000) }
@@ -103,13 +114,54 @@ const sandbox = {
 		pointerSize: 8,
 		enumerateRanges: function () { rangesEnumerated++; return fakeRanges; },
 		enumerateThreads: function () { return fakeThreads; },
-		enumerateModules: function () { modulesEnumerated++; return fakeModules; }
+		enumerateModules: function () { modulesEnumerated++; return fakeModules; },
+		getCurrentThreadId: function () { return 4242; },
+		setExceptionHandler: function (cb) { exceptionHandler = cb; }
 	},
-	recv: function (cb) { pendingRecv = cb; },
+	Java: {
+		available: true,
+		performNow: function (fn) { return fn(); },
+		perform: function (fn) { return fn(); },
+		enumerateClassLoadersSync: function () {
+			return [
+				{ getClass: function () { return { getName: function () { return 'dalvik.system.PathClassLoader'; } }; },
+					toString: function () { return 'dalvik.system.PathClassLoader[DexPathList[...]]'; } },
+				{ getClass: function () { return { getName: function () { return 'java.lang.BootClassLoader'; } }; },
+					toString: function () { return 'java.lang.BootClassLoader@abc'; } }
+			];
+		},
+		enumerateLoadedClassesSync: function () {
+			return ['re.frida.minapp.MainActivity', 'java.lang.String', 'java.lang.System',
+				'android.app.Activity', 'android.os.Bundle'];
+		},
+		use: function (name) { return {}; },
+		ClassFactory: { get: function (loader) { return { use: function () { return {}; } }; } }
+	},
+	// untyped recv stores the handler, typed recv(type, cb) is a parked thread waiter.
+	recv: function (type, cb) {
+		if (typeof type === 'function') {
+			pendingRecv = type;
+			return { wait: function () {} };
+		}
+		return { wait: function () {
+			while (parkedActions.length) {
+				pendingRecv(parkedActions.shift());
+			}
+			cb({ id: continueDeliverId, type: type });
+		} };
+	},
 	// frida marshals send() to json over the wire, so capture that form (it also
 	// drops vm realm prototype, letting deepStrictEqual compare plain objs).
 	send: function (message, data) { sent.push({ message: JSON.parse(JSON.stringify(message)), data: data }); },
 	ptr: function (value) { return new FakePtr(value); },
+	Interceptor: {
+		attach: function (addr, callbacks) {
+			const key = addr.toString();
+			const listener = { detach: function () { interceptors.delete(key); } };
+			interceptors.set(key, { onEnter: callbacks.onEnter, listener: listener });
+			return listener;
+		}
+	},
 	rpc: {},
 	console: console
 };
@@ -286,5 +338,195 @@ assert.deepStrictEqual(roundtrip({ id: 38, type: 'symbols', params: { module: 'a
 
 const symbolsMissing = roundtrip({ id: 39, type: 'symbols', params: { module: 'nope' } });
 assert.strictEqual(symbolsMissing.error, 'no module named nope', 'symbols rejects an unknown module');
+
+assert.deepStrictEqual(roundtrip({ id: 40, type: 'bpSet', params: { address: '0x1000' } }),
+	{ id: 40, ok: true, result: { address: '0x1000', bp: 1 } },
+	'bpSet attaches a breakpoint and returns its id');
+
+const bpDup = roundtrip({ id: 41, type: 'bpSet', params: { address: '0x1000' } });
+assert.strictEqual(bpDup.error, 'a breakpoint already exists at 0x1000', 'a duplicate breakpoint is rejected');
+
+assert.deepStrictEqual(roundtrip({ id: 42, type: 'bpList' }),
+	{ id: 42, ok: true, result: { breakpoints: [{ bp: 1, address: '0x1000' }] } },
+	'bpList reports the breakpoints that are set');
+
+// fire the captured onEnter: it emits the async frida.bp event, then parks on
+// its own per-thread channel until the typed continue from the recv mock frees it.
+const beforeHit = sent.length;
+continueDeliverId = 500;
+interceptors.get('0x1000').onEnter.call({ context: { pc: new FakePtr(0x1000), sp: new FakePtr(0x7000) } });
+const hit = sent[beforeHit].message;
+assert.strictEqual(hit.type, 'frida.bp', 'a hit emits a frida.bp event');
+assert.strictEqual(hit.bp, 1, 'the hit event names the breakpoint id under bp, not id');
+assert.strictEqual(hit.id, undefined, 'the hit event has no top-level id so it is never read as a reply');
+assert.strictEqual(hit.address, '0x1000', 'the hit event names the address');
+assert.strictEqual(hit.threadId, 4242, 'the hit event carries the thread id');
+assert.deepStrictEqual(hit.context, {}, 'the hit event carries an empty context placeholder');
+assert.deepStrictEqual(sent[beforeHit + 1].message, { id: 500, ok: true, result: { resumed: true, threadId: 4242 } },
+	'the parked thread answers the continue that released it, naming its thread');
+
+assert.deepStrictEqual(roundtrip({ id: 43, type: 'bpParked' }),
+	{ id: 43, ok: true, result: { parked: [], recent: null } },
+	'bpParked reports no parked threads once the hit has been continued');
+
+assert.deepStrictEqual(roundtrip({ id: 44, type: 'bpRemove', params: { address: '0x1000' } }),
+	{ id: 44, ok: true, result: { address: '0x1000', removed: 1 } },
+	'bpRemove detaches a breakpoint');
+
+const bpGone = roundtrip({ id: 45, type: 'bpRemove', params: { address: '0x1000' } });
+assert.strictEqual(bpGone.error, 'no breakpoint at 0x1000', 'removing a missing breakpoint is rejected');
+
+roundtrip({ id: 46, type: 'bpSet', params: { address: '0x2000' } });
+roundtrip({ id: 47, type: 'bpSet', params: { address: '0x3000' } });
+assert.deepStrictEqual(roundtrip({ id: 48, type: 'bpRemove', params: { address: '*' } }),
+	{ id: 48, ok: true, result: { removed: 2 } },
+	'bpRemove * clears every breakpoint');
+assert.deepStrictEqual(roundtrip({ id: 49, type: 'bpList' }),
+	{ id: 49, ok: true, result: { breakpoints: [] } },
+	'bpList is empty after removing every breakpoint');
+
+const regBp = roundtrip({ id: 50, type: 'bpSet', params: { address: '0x4000' } }).result.bp;
+
+const regReadMiss = roundtrip({ id: 51, type: 'regRead', params: { threadId: 4242 } });
+assert.strictEqual(regReadMiss.error, 'thread 4242 is not stopped at a breakpoint',
+	'a register read of a thread that is not stopped is rejected');
+
+parkedActions.push({ id: 52, type: 'regRead', params: { threadId: 4242 } });
+parkedActions.push({ id: 53, type: 'regWrite', params: { threadId: 4242, register: 'pc', value: '0xdead' } });
+parkedActions.push({ id: 54, type: 'regWrite', params: { threadId: 4242, register: 'nope', value: '0x1' } });
+parkedActions.push({ id: 55, type: 'regRead', params: { threadId: 4242 } });
+const beforeReg = sent.length;
+continueDeliverId = 501;
+interceptors.get('0x4000').onEnter.call({ context: { pc: new FakePtr(0x4000), sp: new FakePtr(0x9000) } });
+
+assert.strictEqual(sent[beforeReg].message.type, 'frida.bp', 'the register hit emits a frida.bp event');
+assert.deepStrictEqual(sent[beforeReg + 1].message,
+	{ id: 52, ok: true, result: { threadId: 4242, bp: regBp, address: '0x4000' } },
+	'regRead returns the saved register context of the parked thread');
+assert.deepStrictEqual(sent[beforeReg + 2].message,
+	{ id: 53, ok: true, result: { threadId: 4242, register: 'pc', value: '0xdead' } },
+	'regWrite sets a register and echoes the new value');
+assert.strictEqual(sent[beforeReg + 3].message.error, 'no register named nope',
+	'a write to an unknown register is rejected');
+assert.deepStrictEqual(sent[beforeReg + 4].message,
+	{ id: 55, ok: true, result: { threadId: 4242, bp: regBp, address: '0x4000' } },
+	'a later read returns the parked thread info');
+assert.deepStrictEqual(sent[beforeReg + 5].message, { id: 501, ok: true, result: { resumed: true, threadId: 4242 } },
+	'the parked thread is freed after the register window');
+
+const regReadGone = roundtrip({ id: 56, type: 'regRead', params: { threadId: 4242 } });
+assert.strictEqual(regReadGone.error, 'thread 4242 is not stopped at a breakpoint',
+	'a continued thread is no longer stopped');
+
+const regNoThread = roundtrip({ id: 57, type: 'regRead', params: {} });
+assert.strictEqual(regNoThread.error, 'a register request requires a thread id', 'a register read needs a thread id');
+
+const regNoValue = roundtrip({ id: 58, type: 'regWrite', params: { threadId: 4242, register: 'pc' } });
+assert.strictEqual(regNoValue.error, 'thread 4242 is not stopped at a breakpoint',
+	'a register write to a thread that is not stopped is rejected');
+
+roundtrip({ id: 59, type: 'bpRemove', params: { address: '0x4000' } });
+
+// hardware watchpoints armed on every thread, access reported as frida.wp event.
+assert.deepStrictEqual(roundtrip({ id: 60, type: 'wpSet', params: { address: '0x8000', size: 8, conditions: 'w' } }),
+	{ id: 60, ok: true, result: { slot: 0, address: '0x8000', size: 8, conditions: 'w' } },
+	'wpSet arms a watchpoint and returns its slot');
+assert.strictEqual(hwWatch.size, 1, 'the watchpoint occupies a debug slot');
+
+const wpDup = roundtrip({ id: 61, type: 'wpSet', params: { address: '0x8000' } });
+assert.strictEqual(wpDup.error, 'a watchpoint already exists at 0x8000', 'a duplicate watchpoint is rejected');
+
+const wpBadCond = roundtrip({ id: 62, type: 'wpSet', params: { address: '0x9000', conditions: 'x' } });
+assert.strictEqual(wpBadCond.error, 'watchpoint conditions must be r, w, or rw', 'invalid conditions are rejected');
+
+assert.deepStrictEqual(roundtrip({ id: 63, type: 'wpList' }),
+	{ id: 63, ok: true, result: { watchpoints: [{ slot: 0, address: '0x8000', size: 8, conditions: 'w' }] } },
+	'wpList reports the watchpoints that are set');
+
+// fire captured exception handler with a watchpoint trap, emits frida.wp and disarms.
+assert.ok(typeof exceptionHandler === 'function', 'the first watchpoint installs the exception handler');
+const beforeWp = sent.length;
+const handled = exceptionHandler({ type: 'breakpoint', memory: { operation: 'write', address: new FakePtr(0x8000) },
+	context: { pc: new FakePtr(0x4444), sp: new FakePtr(0x9000) } });
+assert.strictEqual(handled, true, 'the watchpoint trap is handled');
+const wpHit = sent[beforeWp].message;
+assert.strictEqual(wpHit.type, 'frida.wp', 'a watchpoint access emits a frida.wp event');
+assert.strictEqual(wpHit.id, undefined, 'the wp event has no top-level id so it is never read as a reply');
+assert.strictEqual(wpHit.threadId, 4242, 'the wp event carries the faulting thread id');
+assert.strictEqual(wpHit.operation, 'write', 'the wp event names the access operation');
+assert.strictEqual(wpHit.address, '0x8000', 'the wp event names the accessed address');
+assert.strictEqual(wpHit.pc, '0x4444', 'the wp event carries the program counter');
+assert.deepStrictEqual(wpHit.context, { pc: '0x4444', sp: '0x9000' }, 'the wp event carries the register context');
+assert.deepStrictEqual(roundtrip({ id: 64, type: 'wpList' }), { id: 64, ok: true, result: { watchpoints: [] } },
+	'a watchpoint is one-shot, disarmed after it fires');
+assert.strictEqual(hwWatch.size, 0, 'the debug slot is released after the hit');
+
+// an unrelated exception, and a debug trap outside any watched range, are passed through.
+roundtrip({ id: 65, type: 'wpSet', params: { address: '0xa000' } });
+assert.strictEqual(exceptionHandler({ type: 'access-violation', context: { pc: new FakePtr(0x5555) } }), false,
+	'a non-debug exception is not claimed');
+assert.strictEqual(exceptionHandler({ type: 'breakpoint', memory: { operation: 'read', address: new FakePtr(0xdead) },
+	context: { pc: new FakePtr(0x6666) } }), false, 'a debug trap outside any watched range is not claimed');
+
+assert.deepStrictEqual(roundtrip({ id: 66, type: 'wpRemove', params: { address: '0xa000' } }),
+	{ id: 66, ok: true, result: { address: '0xa000', removed: 1 } }, 'wpRemove disarms a watchpoint');
+const wpMissing = roundtrip({ id: 67, type: 'wpRemove', params: { address: '0xa000' } });
+assert.strictEqual(wpMissing.error, 'no watchpoint at 0xa000', 'removing a missing watchpoint is rejected');
+
+roundtrip({ id: 68, type: 'wpSet', params: { address: '0xb000' } });
+roundtrip({ id: 69, type: 'wpSet', params: { address: '0xc000' } });
+assert.deepStrictEqual(roundtrip({ id: 70, type: 'wpRemove', params: { address: '*' } }),
+	{ id: 70, ok: true, result: { removed: 2 } }, 'wpRemove * clears every watchpoint');
+
+// host caps usable slots, so slots:1 leaves no room for a second wp.
+roundtrip({ id: 71, type: 'wpSet', params: { address: '0xd000', slots: 1 } });
+const wpFull = roundtrip({ id: 72, type: 'wpSet', params: { address: '0xe000', slots: 1 } });
+assert.strictEqual(wpFull.error, 'no free hardware watchpoint slot', 'the host slot cap is honored');
+roundtrip({ id: 73, type: 'wpRemove', params: { address: '*' } });
+
+// java vm check
+assert.deepStrictEqual(roundtrip({ id: 80, type: 'isJavaAvailable' }),
+	{ id: 80, ok: true, result: { available: true } }, 'isJavaAvailable reports the bridge is reachable');
+
+// classloader enumeration
+const ldrs = roundtrip({ id: 81, type: 'loaderList' });
+assert.strictEqual(ldrs.ok, true, 'loaderList returns ok');
+assert.strictEqual(ldrs.result.loaders.length, 2, 'loaderList returns two loaders');
+assert.strictEqual(ldrs.result.loaders[0].id, 1, 'the first loader gets id 1');
+assert.strictEqual(ldrs.result.loaders[1].id, 2, 'the second loader gets id 2');
+assert.notStrictEqual(ldrs.result.loaders[0].id, ldrs.result.loaders[1].id, 'loader ids are unique');
+assert.strictEqual(ldrs.result.loaders[0].type, 'dalvik.system.PathClassLoader', 'the loader type is reported');
+
+// class enumeration
+assert.deepStrictEqual(roundtrip({ id: 82, type: 'classList' }),
+	{ id: 82, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' },
+		{ name: 'java.lang.String' }, { name: 'java.lang.System' },
+		{ name: 'android.app.Activity' }, { name: 'android.os.Bundle' }],
+		total: 5, truncated: false } },
+	'classList returns all loaded classes');
+
+// prefix filter
+assert.deepStrictEqual(roundtrip({ id: 83, type: 'classList', params: { prefix: 're.frida.minapp' } }),
+	{ id: 83, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' }],
+		total: 1, truncated: false } },
+	'classList with prefix returns matching classes only');
+
+// negative prefix
+assert.deepStrictEqual(roundtrip({ id: 84, type: 'classList', params: { prefix: 'kotlin.' } }),
+	{ id: 84, ok: true, result: { classes: [], total: 0, truncated: false } },
+	'classList with absent prefix returns an empty list');
+
+// simple name match (matches class name after last dot)
+assert.deepStrictEqual(roundtrip({ id: 86, type: 'classList', params: { prefix: 'MainActivity' } }),
+	{ id: 86, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' }],
+		total: 1, truncated: false } },
+	'a simple name prefix matches the class name');
+
+// batch cap
+assert.deepStrictEqual(roundtrip({ id: 85, type: 'classList', params: { max: 2 } }),
+	{ id: 85, ok: true, result: { classes: [{ name: 're.frida.minapp.MainActivity' },
+		{ name: 'java.lang.String' }],
+		total: 2, truncated: true } },
+	'the max cap truncates and marks the result');
 
 console.log('ok - agent script protocol');

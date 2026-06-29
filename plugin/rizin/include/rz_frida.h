@@ -10,6 +10,8 @@
 #define RZ_FRIDA_DEFAULT_TIMEOUT_MS 5000
 #define RZ_FRIDA_MSGBUF_CAPACITY 256
 #define RZ_FRIDA_MEM_MAX_DEFAULT 0x100000
+#define RZ_FRIDA_HW_WATCHPOINTS_DEFAULT 4
+#define RZ_FRIDA_JAVA_MAX_DEFAULT 512
 
 /**
  * \brief URI operation requested by the frontend or command layer.
@@ -230,6 +232,18 @@ RZ_IPI bool rz_frida_backend_modules(RZ_NONNULL RzFridaSession *session, bool re
 RZ_IPI bool rz_frida_backend_exports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_imports(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_symbols(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *module, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_bp_set(RZ_NONNULL RzFridaSession *session, ut64 address, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_bp_list(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_bp_remove(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *address, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_continue(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *thread_id, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_reg_read(RZ_NONNULL RzFridaSession *session, ut64 thread_id, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_reg_write(RZ_NONNULL RzFridaSession *session, ut64 thread_id, RZ_NONNULL const char *reg, RZ_NONNULL const char *value, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_wp_set(RZ_NONNULL RzFridaSession *session, ut64 address, ut64 size, RZ_NULLABLE const char *conditions, ut64 slots, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_wp_list(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_wp_remove(RZ_NONNULL RzFridaSession *session, RZ_NONNULL const char *address, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_java_available(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_loaders(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
+RZ_IPI bool rz_frida_backend_classes(RZ_NONNULL RzFridaSession *session, RZ_NULLABLE const char *prefix, ut64 max, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_ping(RZ_NONNULL RzFridaSession *session, RZ_NONNULL PJ *pj);
 RZ_IPI bool rz_frida_backend_messages(RZ_NONNULL RZ_BORROW RzFridaSession *session, RZ_NONNULL RZ_BORROW PJ *pj);
 

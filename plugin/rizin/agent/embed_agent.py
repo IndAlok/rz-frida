@@ -8,10 +8,18 @@ Reads the agent JavaScript and writes a header that defines a NUL terminated
 byte array the backend loads into the target. Meson runs this during the build
 when Python is available. The checked-in header is the fallback.
 
-    python3 agent/embed_agent.py agent/rzfrida_agent.js src/rzfrida_agent.h
+When node_modules and frida-compile are present the script bundles
+frida-java-bridge into the agent via frida-compile before embedding it.
+When the bridge is not installed (non-Android targets, CI without node),
+the raw agent source is embedded as-is so the script loads without Java.
+
+    python3 agent/embed_agent.py src/rzfrida_agent.h
 """
 
+import os
+import subprocess
 import sys
+
 
 BYTES_PER_ROW = 12
 
@@ -21,7 +29,7 @@ def render(data):
         "// SPDX-FileCopyrightText: 2026 Alok Kumar Mishra <alok16022006@gmail.com>",
         "// SPDX-License-Identifier: LGPL-3.0-only",
         "",
-        "// Generated from agent/rzfrida_agent.js by agent/embed_agent.py.",
+        "// Generated from agent/ by agent/embed_agent.py.",
         "// Do not edit by hand, regenerate it after changing the agent.",
         "",
         "#ifndef RZ_FRIDA_AGENT_SOURCE_H",
@@ -40,14 +48,42 @@ def render(data):
     return "\n".join(lines)
 
 
-def main(argv):
-    if len(argv) != 3:
-        sys.stderr.write("usage: embed_agent.py <input.js> <output.h>\n")
-        return 1
-    with open(argv[1], "rb") as src:
+def embed(input_path, output_path):
+    with open(input_path, "rb") as src:
         data = src.read()
-    with open(argv[2], "w", newline="\n") as out:
+    with open(output_path, "w", newline="\n") as out:
         out.write(render(data))
+
+
+def main(argv):
+    if len(argv) < 2:
+        sys.stderr.write("usage: embed_agent.py <output.h>\n")
+        return 1
+
+    output_path = argv[1]
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    agent_js = os.path.join(script_dir, "rzfrida_agent.js")
+    entry_js = os.path.join(script_dir, "entry.js")
+    bundle_js = os.path.join(script_dir, "rzfrida_agent.bundle.js")
+    frida_compile = os.path.join(script_dir, "node_modules", ".bin", "frida-compile")
+
+    if os.path.isfile(frida_compile) and os.path.isfile(entry_js):
+        try:
+            subprocess.run(
+                [frida_compile, "-Sc", "-o", bundle_js, entry_js],
+                cwd=script_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            embed(bundle_js, output_path)
+            return 0
+        except (subprocess.CalledProcessError, OSError) as e:
+            sys.stderr.write(
+                "embed_agent: frida-compile failed (%s), embedding raw agent\n" % e
+            )
+
+    embed(agent_js, output_path)
     return 0
 
 
