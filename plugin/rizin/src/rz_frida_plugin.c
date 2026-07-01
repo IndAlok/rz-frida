@@ -746,6 +746,33 @@ RZ_IPI RzCmdStatus rz_cmd_fridaC_handler(RZ_NONNULL RzCore *core, int argc,
 	return RZ_CMD_STATUS_OK;
 }
 
+RZ_IPI RzCmdStatus rz_cmd_fridaD_handler(RZ_NONNULL RzCore *core, int argc,
+	RZ_NONNULL const char **argv, RZ_NONNULL RzCmdStateOutput *state) {
+	rz_return_val_if_fail(core && argv && state, RZ_CMD_STATUS_ERROR);
+	if (state->mode != RZ_OUTPUT_MODE_JSON) {
+		return RZ_CMD_STATUS_WRONG_ARGS;
+	}
+	PJ *pj = state->d.pj;
+	RzFridaCoreContext *ctx = frida_context(core);
+	if (!ctx || !ctx->session) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "no session is open");
+		return RZ_CMD_STATUS_OK;
+	}
+	const char *className = argv[1];
+	if (!RZ_STR_ISNOTEMPTY(className)) {
+		rz_frida_json_error(pj, RZ_FRIDA_ERROR_INVALID_TARGET, "class name is required");
+		return RZ_CMD_STATUS_OK;
+	}
+	ut64 loaderId = 0;
+	if (argc > 2 && RZ_STR_ISNOTEMPTY(argv[2])) {
+		loaderId = rz_num_math(core->num, argv[2]);
+	}
+	rz_cons_break_push(frida_cancel_on_break, ctx->session);
+	rz_frida_backend_class_describe(ctx->session, className, loaderId, pj);
+	rz_cons_break_pop();
+	return RZ_CMD_STATUS_OK;
+}
+
 static RzFridaCoreContext *frida_context_new(void) {
 	return RZ_NEW0(RzFridaCoreContext);
 }
