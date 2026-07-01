@@ -26,6 +26,7 @@ static const RzCmdDescDetail cmd_fridag_details[2];
 static const RzCmdDescDetail cmd_fridaB_details[2];
 static const RzCmdDescDetail cmd_fridaW_details[2];
 static const RzCmdDescDetail cmd_fridaW_minus_details[2];
+static const RzCmdDescDetail cmd_fridaD_details[2];
 static const RzCmdDescDetail cmd_frida_details[11];
 static const RzCmdDescArg cmd_fridau_args[2];
 static const RzCmdDescArg cmd_fridap_args[2];
@@ -47,6 +48,7 @@ static const RzCmdDescArg cmd_fridaB_args[4];
 static const RzCmdDescArg cmd_fridaW_args[4];
 static const RzCmdDescArg cmd_fridaW_minus_args[2];
 static const RzCmdDescArg cmd_fridaC_args[2];
+static const RzCmdDescArg cmd_fridaD_args[3];
 
 static const RzCmdDescDetailEntry cmd_frida_Session_space_status_detail_entries[] = {
 	{ .text = "fridas", .arg_str = NULL, .comment = "Print plugin/session status in plain text" },
@@ -759,6 +761,36 @@ static const RzCmdDescHelp cmd_fridaC_help = {
 	.args = cmd_fridaC_args,
 };
 
+static const RzCmdDescDetailEntry cmd_fridaD_Examples_detail_entries[] = {
+	{ .text = "fridaDj ", .arg_str = "java.lang.String", .comment = "Describe String using the default system loader" },
+	{ .text = "fridaDj ", .arg_str = "com.example.Foo 3", .comment = "Describe Foo loaded by classloader id 3" },
+	{ 0 },
+};
+static const RzCmdDescDetail cmd_fridaD_details[] = {
+	{ .name = "Examples", .entries = cmd_fridaD_Examples_detail_entries },
+	{ 0 },
+};
+static const RzCmdDescArg cmd_fridaD_args[] = {
+	{
+		.name = "class",
+		.type = RZ_CMD_ARG_TYPE_STRING,
+
+	},
+	{
+		.name = "loader",
+		.type = RZ_CMD_ARG_TYPE_NUM,
+		.optional = true,
+
+	},
+	{ 0 },
+};
+static const RzCmdDescHelp cmd_fridaD_help = {
+	.summary = "Describe a Java class in the target",
+	.description = "Describes a Java class in the target process through the rz-frida agent. Takes a fully qualified class name and an optional classloader id from a prior loader listing, extracts the superclass, interfaces, declared fields, declared methods, constructors, modifier flags, and Kotlin metadata when the class was compiled with the Kotlin compiler, and returns everything in a structured JSON envelope.",
+	.details = cmd_fridaD_details,
+	.args = cmd_fridaD_args,
+};
+
 RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 	RzCmdDesc *root_cd = rz_cmd_get_root(core->rcmd);
 	rz_cmd_batch_start(core->rcmd);
@@ -851,5 +883,8 @@ RZ_IPI void rzshell_cmddescs_init(RzCore *core) {
 
 	RzCmdDesc *cmd_fridaC_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaC", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaC_handler, &cmd_fridaC_help);
 	rz_warn_if_fail(cmd_fridaC_cd);
+
+	RzCmdDesc *cmd_fridaD_cd = rz_cmd_desc_argv_state_new(core->rcmd, cmd_frida_cd, "fridaD", RZ_OUTPUT_MODE_JSON, rz_cmd_fridaD_handler, &cmd_fridaD_help);
+	rz_warn_if_fail(cmd_fridaD_cd);
 	rz_cmd_batch_end(core->rcmd);
 }
