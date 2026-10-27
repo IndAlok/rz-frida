@@ -1,0 +1,168 @@
+name: Debug frida crash
+
+# Throwaway probe for the Frida 17.24.3 SIGSEGV seen in the pin PRs.
+# Runs a minimal frida-core repro for each requested version, then optionally
+# builds the plugin and runs test_plugin under gdb.
+#
+# Dispatch from a throwaway branch:
+#   gh workflow run debug-frida.yml --repo IndAlok/rz-frida --ref debug/frida-crash
+
+on:
+  workflow_dispatch:
+    inputs:
+      frida_versions:
+        description: "Space-separated Frida versions to probe"
+        required: false
+        default: "17.17.0 17.23.3 17.24.0 17.24.3"
+      build_plugin:
+        description: "Build rizin + rz-frida and run test_plugin under gdb"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with: { python-version: '3.12' }
+
+      - name: Environment
+        run: |
+          uname -a
+          echo "--- usb sysfs ---"
+          ls -l /sys/bus/usb/devices || true
+          echo "--- usb dev nodes ---"
+          ls -l /dev/bus/usb || true
+          echo "--- udev ---"
+          ls -l /run/udev || true
+          echo "--- ptrace scope ---"
+          cat /proc/sys/kernel/yama/ptrace_scope || true
+          echo "--- limits ---"
+          ulimit -a
+          echo "--- cpu ---"
+          lscpu | head -30
+
+      - name: Minimal frida-core probe
+        env:
+          FRIDA_VERSIONS: ${{ inputs.frida_versions }}
+        run: |
+          set -u
+          mkdir -p "$GITHUB_WORKSPACE/debug-logs"
+          results="$GITHUB_WORKSPACE/debug-logs/repro-results.txt"
+          : > "$results"
+          for version in $FRIDA_VERSIONS; do
+            echo "===== frida $version =====" | tee -a "$results"
+            devkit="frida-core-devkit-$version-linux-x86_64"
+            rm -rf "$devkit" "$devkit.tar.xz" "repro-$version"
+            if ! wget -q "https://github.com/frida/frida/releases/download/$version/$devkit.tar.xz"; then
+              echo "$version DOWNLOAD_FAILED" | tee -a "$results"
+              continue
+            fi
+            if ! xz -t "$devkit.tar.xz"; then
+              echo "$version BAD_ARCHIVE" | tee -a "$results"
+              continue
+            fi
+            mkdir "$devkit"
+            tar xf "$devkit.tar.xz" -C "$devkit"
+            if ! gcc -O0 -g "$GITHUB_WORKSPACE/debug/frida-usb-repro.c" \
+                -I"$devkit" "$devkit/libfrida-core.a" -lpthread -ldl -lm \
+                -o "repro-$version" >/tmp/repro-build-$version.log 2>&1; then
+              echo "$version BUILD_FAILED" | tee -a "$results"
+              tail -20 "/tmp/repro-build-$version.log" | tee -a "$results"
+              continue
+            fi
+            set +e
+            MALLOC_PERTURB_=90 stdbuf -oL -eL "./repro-$version" >"/tmp/repro-$version.log" 2>&1
+            rc=$?
+            set -e
+            echo "$version exit=$rc" | tee -a "$results"
+            tail -20 "/tmp/repro-$version.log" | tee -a "$results"
+          done
+          echo "===== summary =====" | tee -a "$results"
+          cat "$results"
+
+      - name: Install rizin
+        if: ${{ inputs.build_plugin }}
+        run: |
+          set -euo pipefail
+          pip install meson ninja PyYAML
+          wget -q https://github.com/rizinorg/rizin/releases/download/v0.9.1/rizin-src-v0.9.1.tar.xz
+          tar xf rizin-src-v0.9.1.tar.xz
+          meson setup rizin-v0.9.1/build rizin-v0.9.1 --prefix=/usr -Dblob=true
+          ninja -C rizin-v0.9.1/build
+          sudo ninja -C rizin-v0.9.1/build install
+
+      - name: Build plugin with newest frida
+        if: ${{ inputs.build_plugin }}
+        env:
+          FRIDA_VERSIONS: ${{ inputs.frida_versions }}
+        run: |
+          set -euo pipefail
+          version=$(echo "$FRIDA_VERSIONS" | awk '{print $NF}')
+          devkit="frida-core-devkit-$version-linux-x86_64"
+          if [ ! -d "$devkit" ]; then
+            wget "https://github.com/frida/frida/releases/download/$version/$devkit.tar.xz"
+            mkdir "$devkit"
+            tar xf "$devkit.tar.xz" -C "$devkit"
+          fi
+          meson setup "build-$version" \
+            -Dfrida_core=enabled \
+            -Dfrida_include_dir="$PWD/$devkit" \
+            -Dfrida_library="$PWD/$devkit/libfrida-core.a"
+          ninja -C "build-$version"
+
+      - name: Run plugin test under gdb
+        if: ${{ inputs.build_plugin }}
+        env:
+          FRIDA_VERSIONS: ${{ inputs.frida_versions }}
+        run: |
+          set -u
+          mkdir -p "$GITHUB_WORKSPACE/debug-logs"
+          version=$(echo "$FRIDA_VERSIONS" | awk '{print $NF}')
+          test="build-$version/plugin/rizin/test_plugin"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gdb
+          ulimit -c unlimited
+          sudo sysctl -w kernel.core_pattern=/tmp/core.%p || true
+
+          set +e
+          MALLOC_PERTURB_=90 stdbuf -oL -eL "$test" >"$GITHUB_WORKSPACE/debug-logs/plain-$version.log" 2>&1
+          echo "plain exit=$?" | tee "$GITHUB_WORKSPACE/debug-logs/plugin-exit.txt"
+          set -e
+          tail -40 "$GITHUB_WORKSPACE/debug-logs/plain-$version.log" || true
+
+          set +e
+          gdb -q -batch \
+            -ex 'set pagination off' \
+            -ex 'set confirm off' \
+            -ex 'set disable-randomization off' \
+            -ex 'set environment MALLOC_PERTURB_=90' \
+            -ex run \
+            -ex 'info threads' \
+            -ex 'thread apply all bt' \
+            --args "$test" >"$GITHUB_WORKSPACE/debug-logs/gdb-$version.log" 2>&1
+          set -e
+          tail -300 "$GITHUB_WORKSPACE/debug-logs/gdb-$version.log" || true
+
+          if ls /tmp/core.* >/dev/null 2>&1; then
+            core=$(ls -t /tmp/core.* | head -1)
+            gdb -q -batch -ex 'set pagination off' -ex 'thread apply all bt' \
+              "$test" "$core" >"$GITHUB_WORKSPACE/debug-logs/core-$version.log" 2>&1 || true
+            tail -300 "$GITHUB_WORKSPACE/debug-logs/core-$version.log" || true
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frida-crash-logs
+          path: debug-logs
+          if-no-files-found: ignore
