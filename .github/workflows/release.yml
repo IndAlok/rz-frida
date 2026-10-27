@@ -37,7 +37,7 @@ on:
 # Dependency pins, bumped by the update-deps workflow.
 env:
   RIZIN_VERSION: v0.9.1
-  FRIDA_VERSION: 17.17.0
+  FRIDA_VERSION: 17.24.2
   CUTTER_VERSION: v2.5.0
 
 concurrency:
