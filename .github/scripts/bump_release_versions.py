@@ -34,10 +34,17 @@ README_PATTERNS = {
     ],
 }
 
+# Frida 17.24.3 crashes when a device manager is closed while the Linux
+# pairing browser start is still in flight (upstream 8ff7b81b95, fixed by
+# 741dbe0642 which is not in a release yet). Drop this once a release
+# carries the fix.
+BLOCKED_RELEASES = {
+    "FRIDA_VERSION": frozenset(("17.24.3",)),
+}
 
-def latest_release(repo):
-    """Return tag name of the latest stable release of repo."""
-    url = "https://api.github.com/repos/%s/releases/latest" % repo
+
+def fetch_releases(url):
+    """GET a releases API URL and return the parsed JSON."""
     request = urllib.request.Request(
         url,
         headers={
@@ -46,8 +53,25 @@ def latest_release(repo):
         },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
-        data = json.load(response)
-    return data["tag_name"]
+        return json.load(response)
+
+
+def latest_release(repo, blocked=()):
+    """Return the newest stable release of repo that is not blocked."""
+    latest = fetch_releases(
+        "https://api.github.com/repos/%s/releases/latest" % repo
+    )["tag_name"]
+    if latest not in blocked:
+        return latest
+    print("skip: %s %s is blocked" % (repo, latest))
+    for release in fetch_releases(
+        "https://api.github.com/repos/%s/releases?per_page=30" % repo
+    ):
+        if release["draft"] or release["prerelease"]:
+            continue
+        if release["tag_name"] not in blocked:
+            return release["tag_name"]
+    raise RuntimeError("no usable release for %s" % repo)
 
 
 def version_tuple(version):
@@ -139,7 +163,7 @@ def main():
     latest = {}
     for name, repo in PINS.items():
         try:
-            latest[name] = latest_release(repo)
+            latest[name] = latest_release(repo, BLOCKED_RELEASES.get(name, ()))
         except Exception as e:
             print("error: cannot fetch %s: %s" % (repo, e))
             return 1
