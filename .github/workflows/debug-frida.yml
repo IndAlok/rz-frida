@@ -15,7 +15,7 @@ on:
       frida_versions:
         description: "Space-separated Frida versions to probe"
         required: false
-        default: "17.17.0 17.23.3 17.24.0 17.24.3"
+        default: "17.24.2"
       build_plugin:
         description: "Build rizin + rz-frida and run test_plugin under gdb"
         required: false
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      FRIDA_VERSIONS: ${{ inputs.frida_versions || '17.17.0 17.23.3 17.24.0 17.24.3' }}
+      FRIDA_VERSIONS: ${{ inputs.frida_versions || '17.24.2' }}
       RIZIN_DEV_REF: ce3502787aae3deda74ecc14a396fe6fa07d82c0
     steps:
       - uses: actions/checkout@v7
