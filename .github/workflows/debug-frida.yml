@@ -4,8 +4,10 @@ name: Debug frida crash
 # Runs a minimal frida-core repro for each requested version, then optionally
 # builds the plugin and runs test_plugin under gdb.
 #
-# Dispatch from a throwaway branch:
-#   gh workflow run debug-frida.yml --repo IndAlok/rz-frida --ref debug/frida-crash
+# workflow_dispatch cannot see this file until it exists on the default
+# branch, so run it with a draft PR instead: open a PR from debug/frida-crash
+# to dev and do not merge it. The pull_request event runs this version of the
+# workflow. Keep workflow_dispatch for reruns after the file is registered.
 
 on:
   workflow_dispatch:
@@ -19,6 +21,11 @@ on:
         required: false
         type: boolean
         default: true
+  pull_request:
+    branches: [dev]
+    paths:
+      - '.github/workflows/debug-frida.yml'
+      - 'debug/frida-usb-repro.c'
 
 permissions:
   contents: read
@@ -28,6 +35,8 @@ jobs:
     name: Probe
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      FRIDA_VERSIONS: ${{ inputs.frida_versions || '17.17.0 17.23.3 17.24.0 17.24.3' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -51,8 +60,6 @@ jobs:
           lscpu | head -30
 
       - name: Minimal frida-core probe
-        env:
-          FRIDA_VERSIONS: ${{ inputs.frida_versions }}
         run: |
           set -u
           mkdir -p "$GITHUB_WORKSPACE/debug-logs"
@@ -90,7 +97,7 @@ jobs:
           cat "$results"
 
       - name: Install rizin
-        if: ${{ inputs.build_plugin }}
+        if: ${{ github.event_name == 'pull_request' || inputs.build_plugin }}
         run: |
           set -euo pipefail
           pip install meson ninja PyYAML
@@ -101,9 +108,7 @@ jobs:
           sudo ninja -C rizin-v0.9.1/build install
 
       - name: Build plugin with newest frida
-        if: ${{ inputs.build_plugin }}
-        env:
-          FRIDA_VERSIONS: ${{ inputs.frida_versions }}
+        if: ${{ github.event_name == 'pull_request' || inputs.build_plugin }}
         run: |
           set -euo pipefail
           version=$(echo "$FRIDA_VERSIONS" | awk '{print $NF}')
@@ -120,9 +125,7 @@ jobs:
           ninja -C "build-$version"
 
       - name: Run plugin test under gdb
-        if: ${{ inputs.build_plugin }}
-        env:
-          FRIDA_VERSIONS: ${{ inputs.frida_versions }}
+        if: ${{ github.event_name == 'pull_request' || inputs.build_plugin }}
         run: |
           set -u
           mkdir -p "$GITHUB_WORKSPACE/debug-logs"
