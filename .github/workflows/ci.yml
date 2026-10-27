@@ -13,7 +13,7 @@ on:
 env:
   RIZIN_VERSION: v0.9.1
   RIZIN_DEV_REF: dev
-  FRIDA_VERSION: 17.17.0
+  FRIDA_VERSION: 17.24.2
   RIZIN_FLAVOR: ${{ (github.base_ref == 'dev' || github.ref_name == 'dev') && 'dev' || 'release' }}
 
 jobs:
