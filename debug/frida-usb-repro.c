@@ -39,6 +39,7 @@ int main(void) {
 		if (session) {
 			frida_unref(session);
 		}
+		frida_unref(local);
 	}
 	clear_error(&error);
 

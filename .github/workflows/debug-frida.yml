@@ -37,6 +37,7 @@ jobs:
     timeout-minutes: 90
     env:
       FRIDA_VERSIONS: ${{ inputs.frida_versions || '17.17.0 17.23.3 17.24.0 17.24.3' }}
+      RIZIN_DEV_REF: ce3502787aae3deda74ecc14a396fe6fa07d82c0
     steps:
       - uses: actions/checkout@v7
 
@@ -96,16 +97,18 @@ jobs:
           echo "===== summary =====" | tee -a "$results"
           cat "$results"
 
-      - name: Install rizin
+      - name: Install rizin dev
         if: ${{ github.event_name == 'pull_request' || inputs.build_plugin }}
         run: |
           set -euo pipefail
           pip install meson ninja PyYAML
-          wget -q https://github.com/rizinorg/rizin/releases/download/v0.9.1/rizin-src-v0.9.1.tar.xz
-          tar xf rizin-src-v0.9.1.tar.xz
-          meson setup rizin-v0.9.1/build rizin-v0.9.1 --prefix=/usr -Dblob=true
-          ninja -C rizin-v0.9.1/build
-          sudo ninja -C rizin-v0.9.1/build install
+          echo "rizin dev ref: $RIZIN_DEV_REF"
+          curl -fsSL "https://github.com/rizinorg/rizin/archive/$RIZIN_DEV_REF.tar.gz" -o rizin-dev.tar.gz
+          mkdir -p rizin-dev-src
+          tar xf rizin-dev.tar.gz -C rizin-dev-src --strip-components=1
+          meson setup rizin-dev-src/build rizin-dev-src --prefix=/usr -Dblob=true
+          ninja -C rizin-dev-src/build
+          sudo ninja -C rizin-dev-src/build install
 
       - name: Build plugin with newest frida
         if: ${{ github.event_name == 'pull_request' || inputs.build_plugin }}
